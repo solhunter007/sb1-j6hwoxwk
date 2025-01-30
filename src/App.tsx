@@ -7,6 +7,7 @@ import Auth from './pages/Auth';
 import SermonNotes from './pages/SermonNotes';
 import Profile from './pages/Profile';
 import Church from './pages/Church';
+import Feed from './pages/Feed';
 import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
@@ -15,7 +16,7 @@ function App() {
       <AuthProvider>
         <Layout>
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Feed />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/sermon-notes" element={<SermonNotes />} />
             <Route path="/profile/:id" element={<Profile />} />
