@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AlertTriangle, Trash2, Settings } from 'lucide-react';
+import { AlertTriangle, Trash2, Settings, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { ProfilePhotoUpload } from './ProfilePhotoUpload';
@@ -33,7 +33,7 @@ export function AccountSettings() {
 
     setLoading(true);
     try {
-      // Delete all user data
+      // First, delete user's storage files
       const { error: storageError } = await supabase.storage
         .from('avatars')
         .remove([`${user.id}/profile.jpg`, `${user.id}/header.jpg`]);
@@ -42,11 +42,14 @@ export function AccountSettings() {
         console.error('Error deleting storage:', storageError);
       }
 
-      // Delete user auth record
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id);
+      // Call the delete_user function which handles deletion in the correct order
+      const { error: deleteError } = await supabase.rpc('delete_user');
+      
+      if (deleteError) {
+        throw deleteError;
+      }
 
-      if (deleteError) throw deleteError;
-
+      // Sign out the user
       await signOut();
       navigate('/');
       toast.success('Your account has been deleted');
@@ -143,9 +146,19 @@ export function AccountSettings() {
                 <button
                   onClick={handleDeleteAccount}
                   disabled={deleteConfirmation !== 'DELETE' || loading}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Confirm Deletion
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-5 w-5 mr-2" />
+                      Confirm Deletion
+                    </>
+                  )}
                 </button>
                 <button
                   onClick={() => {

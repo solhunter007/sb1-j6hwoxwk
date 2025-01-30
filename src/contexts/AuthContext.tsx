@@ -32,36 +32,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const uploadProfileImage = async (userId: string, base64Image: string): Promise<string> => {
-    // Remove the data:image/jpeg;base64, prefix
-    const base64Data = base64Image.split(',')[1];
-    const fileName = `${userId}/profile.jpg`;
+    try {
+      // Remove the data:image/jpeg;base64, prefix
+      const base64Data = base64Image.split(',')[1];
+      const fileName = `${userId}/profile.jpg`;
 
-    // Convert base64 to Uint8Array
-    const binaryData = atob(base64Data);
-    const bytes = new Uint8Array(binaryData.length);
-    for (let i = 0; i < binaryData.length; i++) {
-      bytes[i] = binaryData.charCodeAt(i);
-    }
+      // Convert base64 to Uint8Array
+      const binaryData = atob(base64Data);
+      const bytes = new Uint8Array(binaryData.length);
+      for (let i = 0; i < binaryData.length; i++) {
+        bytes[i] = binaryData.charCodeAt(i);
+      }
 
-    // Upload the image
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(fileName, bytes, {
-        contentType: 'image/jpeg',
-        upsert: true
-      });
+      // Upload the image
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, bytes, {
+          contentType: 'image/jpeg',
+          upsert: true
+        });
 
-    if (uploadError) {
-      console.error('Upload error:', uploadError);
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get the public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Upload error:', error);
       throw new Error('Failed to upload profile image');
     }
-
-    // Get the public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(fileName);
-
-    return publicUrl;
   };
 
   const signUp = async (
@@ -84,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (existingUser) throw new Error('Username is already taken');
 
       // Sign up the user
-      const { data: { user }, error } = await supabase.auth.signUp({
+      const { data: { user: newUser }, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -96,18 +100,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       });
 
-      if (error) throw error;
-      if (!user) throw new Error('Failed to create account');
+      if (signUpError) throw signUpError;
+      if (!newUser) throw new Error('Failed to create account');
 
       let avatarUrl = null;
 
       // If we have a profile image, upload it
       if (profileImage) {
         try {
-          avatarUrl = await uploadProfileImage(user.id, profileImage);
+          avatarUrl = await uploadProfileImage(newUser.id, profileImage);
         } catch (error) {
           console.error('Error uploading profile image:', error);
-          toast.error('Failed to upload profile image');
+          toast.error('Failed to upload profile image, but account was created');
         }
       }
 
@@ -116,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ avatar_url: avatarUrl })
-          .eq('id', user.id);
+          .eq('id', newUser.id);
 
         if (updateError) {
           console.error('Error updating profile with avatar:', updateError);
@@ -182,8 +186,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      // Clear any local storage data
+      localStorage.removeItem('registration-store');
+      
+      // Redirect to home page
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Error signing out:', error);
+      // Even if there's an error, we should clear local state
+      setUser(null);
+      localStorage.removeItem('registration-store');
+      window.location.href = '/';
+    }
   };
 
   return (
