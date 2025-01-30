@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { LoadingState } from '../components/ui/LoadingState';
@@ -198,8 +198,14 @@ export default function Profile() {
             {profile.sermon_notes?.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {profile.sermon_notes.map((note) => (
-                  <div key={note.id} className="card p-4 hover:scale-102 transition-transform">
-                    <h3 className="font-semibold text-holy-blue-900">{note.title}</h3>
+                  <Link
+                    key={note.id}
+                    to={`/sermon-notes/${note.id}`}
+                    className="card p-4 hover:scale-102 transition-transform hover:shadow-md"
+                  >
+                    <h3 className="font-semibold text-holy-blue-900 hover:text-holy-blue-600 transition-colors">
+                      {note.title}
+                    </h3>
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-sm text-holy-blue-600">
                         {format(new Date(note.created_at), 'MMM d, yyyy')}
@@ -208,16 +214,16 @@ export default function Profile() {
                         {note.visibility}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (
               <div className="text-center py-8 bg-holy-blue-50 rounded-lg">
                 <p className="text-holy-blue-600">No sermon notes yet.</p>
                 {isOwnProfile && (
-                  <button className="btn-primary mt-4">
+                  <Link to="/sermon-notes/new" className="btn-primary mt-4">
                     Create Your First Note
-                  </button>
+                  </Link>
                 )}
               </div>
             )}

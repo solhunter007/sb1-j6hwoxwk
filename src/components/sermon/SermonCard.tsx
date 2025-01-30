@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, BookOpen } from 'lucide-react';
+import { Heart, MessageCircle, Share2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { DefaultAvatar } from '../profile/DefaultAvatar';
 import { cn } from '../../utils/cn';
@@ -28,17 +28,36 @@ interface SermonCardProps {
 }
 
 export function SermonCard({ note, onPraise }: SermonCardProps) {
-  const getExcerpt = (content: any): string => {
-    // Extract text content from the JSON structure
+  const getExcerpt = (content: any): { mainContent: string; metadata: { pastor?: string; church?: string } } => {
     try {
-      return content.content
-        .map((block: any) => block.content?.[0]?.text || '')
-        .join(' ')
-        .slice(0, 200) + '...';
+      let mainContent = '';
+      const metadata: { pastor?: string; church?: string } = {};
+
+      for (const block of content.content) {
+        if (block.type === 'paragraph' && block.content) {
+          const text = block.content[0]?.text || '';
+          if (text.startsWith('Pastor:')) {
+            metadata.pastor = text.replace('Pastor:', '').trim();
+          } else if (text.startsWith('Church:')) {
+            metadata.church = text.replace('Church:', '').trim();
+          } else {
+            mainContent += text + ' ';
+          }
+        }
+        // Stop once we have enough text for the main content
+        if (mainContent.length > 150) break;
+      }
+
+      return {
+        mainContent: mainContent.trim().slice(0, 150) + (mainContent.length > 150 ? '...' : ''),
+        metadata
+      };
     } catch (e) {
-      return '';
+      return { mainContent: '', metadata: {} };
     }
   };
+
+  const { mainContent, metadata } = getExcerpt(note.content);
 
   // Ensure counts are numbers
   const praiseCount = typeof note.praise_count === 'number' ? note.praise_count : 0;
@@ -76,24 +95,19 @@ export function SermonCard({ note, onPraise }: SermonCardProps) {
           <h2 className="text-xl font-semibold text-holy-blue-900 group-hover:text-holy-blue-600 transition-colors mb-2">
             {note.title}
           </h2>
-          <p className="text-holy-blue-700 mb-4">{getExcerpt(note.content)}</p>
+          {(metadata.pastor || metadata.church) && (
+            <p className="text-sm text-holy-blue-600/80 mb-3">
+              {metadata.pastor && <span>Pastor {metadata.pastor}</span>}
+              {metadata.pastor && metadata.church && <span> • </span>}
+              {metadata.church && <span>{metadata.church}</span>}
+            </p>
+          )}
+          <p className="text-holy-blue-700 line-clamp-3">
+            {mainContent}
+          </p>
         </Link>
 
-        {note.scripture_references && note.scripture_references.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {note.scripture_references.map((reference, index) => (
-              <div
-                key={index}
-                className="inline-flex items-center px-3 py-1 rounded-full bg-holy-blue-50 text-holy-blue-600 text-sm"
-              >
-                <BookOpen className="h-4 w-4 mr-1" />
-                {reference}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="flex items-center gap-6 pt-4 border-t border-holy-blue-100">
+        <div className="flex items-center gap-6 pt-4 mt-4 border-t border-holy-blue-100">
           <button
             onClick={onPraise}
             className={cn(
