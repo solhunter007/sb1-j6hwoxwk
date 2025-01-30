@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2 } from 'lucide-react';
+import { MessageCircle, Share2, HelpingHand } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { DefaultAvatar } from '../profile/DefaultAvatar';
 import { cn } from '../../utils/cn';
@@ -10,6 +10,7 @@ interface SermonNote {
   title: string;
   content: any;
   created_at: string;
+  visibility: 'public' | 'private' | 'church';
   author: {
     id: string;
     username: string;
@@ -113,14 +114,15 @@ export function SermonCard({ note, onPraise }: SermonCardProps) {
             className={cn(
               "flex items-center gap-2 text-sm transition-colors",
               note.user_has_praised
-                ? "text-red-500 hover:text-red-600"
+                ? "text-divine-yellow-500 hover:text-divine-yellow-600"
                 : "text-holy-blue-500 hover:text-holy-blue-600"
             )}
+            title={note.user_has_praised ? "Remove Praise" : "Praise"}
           >
-            <Heart
+            <HelpingHand
               className={cn(
                 "h-5 w-5",
-                note.user_has_praised && "fill-current"
+                note.user_has_praised && "fill-divine-yellow-500"
               )}
             />
             <span>{praiseCount}</span>

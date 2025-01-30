@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Filter, Clock, Heart, Users, Church } from 'lucide-react';
+import { Search, Filter, Clock, HelpingHand, Users, Church } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 interface FeedFiltersProps {
@@ -18,7 +18,7 @@ export function FeedFilters({
   const filters = [
     { id: 'recent', label: 'Recent', icon: Clock },
     { id: 'following', label: 'Following', icon: Users },
-    { id: 'praised', label: 'Most Praised', icon: Heart },
+    { id: 'praised', label: 'Most Praised', icon: HelpingHand },
     { id: 'church', label: 'Church', icon: Church },
   ];
 

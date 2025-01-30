@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { Heart, MessageCircle, Share2, BookOpen, ArrowLeft } from 'lucide-react';
+import { HelpingHand, MessageCircle, Share2, BookOpen, ArrowLeft } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { DefaultAvatar } from '../../components/profile/DefaultAvatar';
 import { useAuth } from '../../contexts/AuthContext';
@@ -25,7 +25,7 @@ interface SermonNote {
   scripture_references: string[];
 }
 
-export default function ViewSermonNote() {
+const ViewSermonNote = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -230,14 +230,15 @@ export default function ViewSermonNote() {
               className={cn(
                 "flex items-center gap-2 text-sm transition-colors",
                 note.user_has_praised
-                  ? "text-red-500 hover:text-red-600"
+                  ? "text-divine-yellow-500 hover:text-divine-yellow-600"
                   : "text-holy-blue-500 hover:text-holy-blue-600"
               )}
+              title={note.user_has_praised ? "Remove Praise" : "Praise"}
             >
-              <Heart
+              <HelpingHand
                 className={cn(
                   "h-5 w-5",
-                  note.user_has_praised && "fill-current"
+                  note.user_has_praised && "fill-divine-yellow-500"
                 )}
               />
               <span>{note.praise_count}</span>
@@ -257,4 +258,6 @@ export default function ViewSermonNote() {
       </article>
     </div>
   );
-}
+};
+
+export default ViewSermonNote;
