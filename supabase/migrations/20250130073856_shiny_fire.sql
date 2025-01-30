@@ -1,0 +1,7 @@
+CREATE OR REPLACE FUNCTION get_server_timestamp()
+RETURNS timestamptz
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT NOW();
+$$;

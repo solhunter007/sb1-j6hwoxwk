@@ -24,7 +24,9 @@
     "tailwind-merge": "^2.2.1",
     "sonner": "^1.4.3",
     "zustand": "^4.5.2",
-    "react-easy-crop": "^5.0.5"
+    "react-easy-crop": "^5.0.5",
+    "@tiptap/extension-placeholder": "^2.2.4",
+    "@tiptap/extension-link": "^2.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",

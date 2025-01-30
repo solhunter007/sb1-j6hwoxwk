@@ -1,10 +1,18 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Scroll, Home, User, Church, Bell } from 'lucide-react';
+import { Scroll, Home, User, Church, Bell, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-holy-blue-50 to-white">
@@ -50,6 +58,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   >
                     <User className="h-6 w-6" />
                   </Link>
+                  <button 
+                    onClick={handleSignOut}
+                    className="p-2 rounded-full text-holy-blue-600/70 hover:text-holy-blue-600 hover:bg-holy-blue-50 transition-all"
+                    title="Sign Out"
+                  >
+                    <LogOut className="h-6 w-6" />
+                  </button>
                 </>
               ) : (
                 <Link to="/auth" className="btn-primary">

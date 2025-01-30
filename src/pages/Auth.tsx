@@ -1,76 +1,71 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
-import { UserType, SignUpData } from '../types/auth';
-import { ImageUp as ImageUpload, Church, User as UserIcon, Eye, EyeOff, X } from 'lucide-react';
+import { UserType } from '../types/auth';
+import { ImageUp as ImageUpload, Church, User as UserIcon, AlertTriangle } from 'lucide-react';
 import ImageCropper from '../components/ImageCropper';
+import { RegistrationReview } from '../components/auth/RegistrationReview';
+import { useRegistrationStore } from '../stores/registrationStore';
+import { DefaultAvatar } from '../components/profile/DefaultAvatar';
+import { ProfilePhotoUpload } from '../components/profile/ProfilePhotoUpload';
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
-  const [userType, setUserType] = useState<UserType | null>(null);
-  const [step, setStep] = useState(1);
-  const [profileImage, setProfileImage] = useState<string | null>(null);
-  const [headerImage, setHeaderImage] = useState<string | null>(null);
   const [croppingImage, setCroppingImage] = useState<{ file: string; type: 'profile' | 'header' } | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showSummary, setShowSummary] = useState(false);
   
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
-  const { register, handleSubmit, watch, formState: { errors }, reset, getValues } = useForm<SignUpData & { confirmPassword: string }>();
+  const { register, handleSubmit, watch, formState: { errors }, reset } = useForm();
+  
+  const {
+    data: registrationData,
+    currentStep,
+    setStep,
+    setData,
+    clearData
+  } = useRegistrationStore();
 
   const password = watch('password');
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'header') => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCroppingImage({ file: reader.result as string, type });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleCropComplete = (croppedImage: string) => {
-    if (croppingImage?.type === 'profile') {
-      setProfileImage(croppedImage);
-    } else {
-      setHeaderImage(croppedImage);
-    }
-    setCroppingImage(null);
-  };
+  useEffect(() => {
+    // Clear registration data when component unmounts
+    return () => {
+      if (!isSignUp) {
+        clearData();
+      }
+    };
+  }, [isSignUp, clearData]);
 
   const handleCancel = () => {
+    clearData();
+    setIsSignUp(false);
     reset();
-    setProfileImage(null);
-    setHeaderImage(null);
-    setCroppingImage(null);
-    setStep(1);
-    setUserType(null);
-    setShowSummary(false);
   };
 
-  const onSubmit = async (data: SignUpData & { confirmPassword: string }) => {
+  const onSubmit = async (formData: any) => {
     try {
       if (isSignUp) {
-        if (step < 3) {
-          setStep(step + 1);
+        if (currentStep < 5) {
+          // Store form data and move to next step
+          setData(formData);
+          setStep(currentStep + 1);
           return;
         }
-        if (!showSummary) {
-          setShowSummary(true);
-          return;
-        }
-        await signUp(data.email, data.password, data.username);
+
+        // Final submission
+        await signUp(
+          registrationData.email!,
+          registrationData.password!,
+          registrationData.username!
+        );
+        
         toast.success('Account created successfully!');
+        clearData();
         navigate('/');
       } else {
-        await signIn(data.username, data.password);
-        toast.success('Signed in successfully!');
+        await signIn(formData.identifier, formData.password);
         navigate('/');
       }
     } catch (error) {
@@ -78,130 +73,41 @@ export default function Auth() {
     }
   };
 
-  const renderSignInForm = () => (
-    <div className="space-y-6">
-      <div>
-        <label htmlFor="username" className="block text-sm font-medium text-holy-blue-900">
-          Username
-        </label>
-        <input
-          {...register('username', { required: 'Username is required' })}
-          type="text"
-          className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2 focus:border-holy-blue-500 focus:ring focus:ring-holy-blue-200 focus:ring-opacity-50"
-        />
-        {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username.message}</p>}
-      </div>
-      <div>
-        <label htmlFor="password" className="block text-sm font-medium text-holy-blue-900">
-          Password
-        </label>
-        <div className="relative">
-          <input
-            {...register('password', { required: 'Password is required' })}
-            type={showPassword ? 'text' : 'password'}
-            className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2 pr-10 focus:border-holy-blue-500 focus:ring focus:ring-holy-blue-200 focus:ring-opacity-50"
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute inset-y-0 right-0 pr-3 flex items-center text-holy-blue-500"
-          >
-            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-          </button>
-        </div>
-        {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>}
-      </div>
-    </div>
-  );
-
-  const renderAccountSummary = () => {
-    const values = getValues();
-    return (
-      <div className="space-y-6">
-        <h3 className="text-xl font-semibold text-holy-blue-900 mb-4">Account Summary</h3>
-        <div className="space-y-4 bg-holy-blue-50 p-4 rounded-lg">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm font-medium text-holy-blue-900">Account Type</p>
-              <p className="text-holy-blue-600">{userType === 'church' ? 'Church Organization' : 'Individual'}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-holy-blue-900">Username</p>
-              <p className="text-holy-blue-600">{values.username}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-holy-blue-900">Email</p>
-              <p className="text-holy-blue-600">{values.email}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-holy-blue-900">Full Name</p>
-              <p className="text-holy-blue-600">{values.fullName}</p>
-            </div>
-            {userType === 'church' && values.churchDetails && (
-              <>
-                <div>
-                  <p className="text-sm font-medium text-holy-blue-900">Church Name</p>
-                  <p className="text-holy-blue-600">{values.churchDetails.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-holy-blue-900">Location</p>
-                  <p className="text-holy-blue-600">{values.churchDetails.city}, {values.churchDetails.zipCode}</p>
-                </div>
-              </>
-            )}
-          </div>
-          <div className="flex gap-4 mt-6">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-holy-blue-900 mb-2">Profile Picture</p>
-              {profileImage ? (
-                <img src={profileImage} alt="Profile" className="w-24 h-24 rounded-full object-cover" />
-              ) : (
-                <div className="w-24 h-24 rounded-full bg-holy-blue-100 flex items-center justify-center">
-                  <UserIcon className="h-8 w-8 text-holy-blue-400" />
-                </div>
-              )}
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-holy-blue-900 mb-2">Header Image</p>
-              {headerImage ? (
-                <img src={headerImage} alt="Header" className="w-full h-24 rounded-lg object-cover" />
-              ) : (
-                <div className="w-full h-24 rounded-lg bg-holy-blue-100 flex items-center justify-center">
-                  <ImageUpload className="h-8 w-8 text-holy-blue-400" />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-4">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="flex-1 btn-secondary"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="flex-1 btn-primary"
-          >
-            Confirm Account Creation
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   const renderStep = () => {
     if (!isSignUp) {
-      return renderSignInForm();
+      return (
+        <div className="space-y-6">
+          <div>
+            <label htmlFor="identifier" className="block text-sm font-medium text-holy-blue-900">
+              Email or Username
+            </label>
+            <input
+              {...register('identifier', { required: 'Email or username is required' })}
+              type="text"
+              className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2"
+            />
+            {errors.identifier && (
+              <p className="text-red-500 text-sm mt-1">{errors.identifier.message as string}</p>
+            )}
+          </div>
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-holy-blue-900">
+              Password
+            </label>
+            <input
+              {...register('password', { required: 'Password is required' })}
+              type="password"
+              className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2"
+            />
+            {errors.password && (
+              <p className="text-red-500 text-sm mt-1">{errors.password.message as string}</p>
+            )}
+          </div>
+        </div>
+      );
     }
 
-    if (showSummary) {
-      return renderAccountSummary();
-    }
-
-    switch (step) {
+    switch (currentStep) {
       case 1:
         return (
           <div className="space-y-6">
@@ -209,11 +115,11 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={() => {
-                  setUserType('individual');
+                  setData({ userType: 'individual' });
                   setStep(2);
                 }}
                 className={`card p-6 text-center hover:border-holy-blue-500 transition-colors ${
-                  userType === 'individual' ? 'border-holy-blue-500' : ''
+                  registrationData.userType === 'individual' ? 'border-holy-blue-500' : ''
                 }`}
               >
                 <UserIcon className="h-12 w-12 mx-auto mb-4 text-holy-blue-500" />
@@ -225,11 +131,11 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={() => {
-                  setUserType('church');
+                  setData({ userType: 'church' });
                   setStep(2);
                 }}
                 className={`card p-6 text-center hover:border-holy-blue-500 transition-colors ${
-                  userType === 'church' ? 'border-holy-blue-500' : ''
+                  registrationData.userType === 'church' ? 'border-holy-blue-500' : ''
                 }`}
               >
                 <Church className="h-12 w-12 mx-auto mb-4 text-holy-blue-500" />
@@ -249,34 +155,24 @@ export default function Auth() {
                 Email address
               </label>
               <input
-                {...register('email', { 
-                  required: 'Email is required',
-                  pattern: {
-                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                    message: 'Invalid email address'
-                  }
-                })}
+                {...register('email', { required: 'Email is required' })}
                 type="email"
-                className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2 focus:border-holy-blue-500 focus:ring focus:ring-holy-blue-200 focus:ring-opacity-50"
+                defaultValue={registrationData.email}
+                className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2"
               />
-              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
+              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message as string}</p>}
             </div>
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-holy-blue-900">
                 Username
               </label>
               <input
-                {...register('username', { 
-                  required: 'Username is required',
-                  minLength: {
-                    value: 3,
-                    message: 'Username must be at least 3 characters'
-                  }
-                })}
+                {...register('username', { required: 'Username is required' })}
                 type="text"
-                className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2 focus:border-holy-blue-500 focus:ring focus:ring-holy-blue-200 focus:ring-opacity-50"
+                defaultValue={registrationData.username}
+                className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2"
               />
-              {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username.message}</p>}
+              {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username.message as string}</p>}
             </div>
             <div>
               <label htmlFor="fullName" className="block text-sm font-medium text-holy-blue-900">
@@ -285,11 +181,12 @@ export default function Auth() {
               <input
                 {...register('fullName', { required: 'Full name is required' })}
                 type="text"
-                className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2 focus:border-holy-blue-500 focus:ring focus:ring-holy-blue-200 focus:ring-opacity-50"
+                defaultValue={registrationData.fullName}
+                className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2"
               />
-              {errors.fullName && <p className="text-red-500 text-sm mt-1">{errors.fullName.message}</p>}
+              {errors.fullName && <p className="text-red-500 text-sm mt-1">{errors.fullName.message as string}</p>}
             </div>
-            {userType === 'church' && (
+            {registrationData.userType === 'church' && (
               <>
                 <div>
                   <label htmlFor="churchName" className="block text-sm font-medium text-holy-blue-900">
@@ -298,7 +195,8 @@ export default function Auth() {
                   <input
                     {...register('churchDetails.name', { required: 'Church name is required' })}
                     type="text"
-                    className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2 focus:border-holy-blue-500 focus:ring focus:ring-holy-blue-200 focus:ring-opacity-50"
+                    defaultValue={registrationData.churchDetails?.name}
+                    className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -309,7 +207,8 @@ export default function Auth() {
                     <input
                       {...register('churchDetails.city', { required: 'City is required' })}
                       type="text"
-                      className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2 focus:border-holy-blue-500 focus:ring focus:ring-holy-blue-200 focus:ring-opacity-50"
+                      defaultValue={registrationData.churchDetails?.city}
+                      className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2"
                     />
                   </div>
                   <div>
@@ -319,144 +218,78 @@ export default function Auth() {
                     <input
                       {...register('churchDetails.zipCode', { required: 'ZIP code is required' })}
                       type="text"
-                      className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2 focus:border-holy-blue-500 focus:ring focus:ring-holy-blue-200 focus:ring-opacity-50"
+                      defaultValue={registrationData.churchDetails?.zipCode}
+                      className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2"
                     />
                   </div>
                 </div>
               </>
             )}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-holy-blue-900">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  {...register('password', {
-                    required: 'Password is required',
-                    minLength: {
-                      value: 8,
-                      message: 'Password must be at least 8 characters'
-                    },
-                    pattern: {
-                      value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-                      message: 'Password must include uppercase, lowercase, number and special character'
-                    }
-                  })}
-                  type={showPassword ? 'text' : 'password'}
-                  className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2 pr-10 focus:border-holy-blue-500 focus:ring focus:ring-holy-blue-200 focus:ring-opacity-50"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-holy-blue-500"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-              {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>}
-            </div>
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-holy-blue-900">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <input
-                  {...register('confirmPassword', {
-                    required: 'Please confirm your password',
-                    validate: value => value === password || 'Passwords do not match'
-                  })}
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2 pr-10 focus:border-holy-blue-500 focus:ring focus:ring-holy-blue-200 focus:ring-opacity-50"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-holy-blue-500"
-                >
-                  {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-              {errors.confirmPassword && (
-                <p className="text-red-500 text-sm mt-1">{errors.confirmPassword.message}</p>
-              )}
-            </div>
           </div>
         );
       case 3:
         return (
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-holy-blue-900 mb-2">
-                Profile Picture
+              <label htmlFor="password" className="block text-sm font-medium text-holy-blue-900">
+                Password
               </label>
-              <div className="flex items-center space-x-4">
-                {profileImage ? (
-                  <div className="relative w-32 h-32">
-                    <img
-                      src={profileImage}
-                      alt="Profile"
-                      className="w-full h-full object-cover rounded-full"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setProfileImage(null)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="w-32 h-32 border-2 border-dashed border-holy-blue-200 rounded-full flex items-center justify-center hover:border-holy-blue-400 transition-colors">
-                    <label className="cursor-pointer">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleImageUpload(e, 'profile')}
-                      />
-                      <ImageUpload className="h-8 w-8 text-holy-blue-400" />
-                    </label>
-                  </div>
-                )}
-              </div>
+              <input
+                {...register('password', { 
+                  required: 'Password is required',
+                  minLength: { value: 8, message: 'Password must be at least 8 characters' }
+                })}
+                type="password"
+                className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2"
+              />
+              {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password.message as string}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-holy-blue-900 mb-2">
-                Header Image
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-holy-blue-900">
+                Confirm Password
               </label>
-              <div className="flex items-center space-x-4">
-                {headerImage ? (
-                  <div className="relative w-full h-48">
-                    <img
-                      src={headerImage}
-                      alt="Header"
-                      className="w-full h-full object-cover rounded-lg"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setHeaderImage(null)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="w-full h-48 border-2 border-dashed border-holy-blue-200 rounded-lg flex items-center justify-center hover:border-holy-blue-400 transition-colors">
-                    <label className="cursor-pointer">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleImageUpload(e, 'header')}
-                      />
-                      <ImageUpload className="h-8 w-8 text-holy-blue-400" />
-                    </label>
-                  </div>
-                )}
-              </div>
+              <input
+                {...register('confirmPassword', { 
+                  required: 'Please confirm your password',
+                  validate: value => value === password || 'Passwords do not match'
+                })}
+                type="password"
+                className="mt-1 block w-full rounded-md border border-holy-blue-200 px-3 py-2"
+              />
+              {errors.confirmPassword && (
+                <p className="text-red-500 text-sm mt-1">{errors.confirmPassword.message as string}</p>
+              )}
             </div>
           </div>
         );
+      case 4:
+        return (
+          <div className="space-y-6">
+            <ProfilePhotoUpload
+              currentPhoto={registrationData.profileImage}
+              onPhotoChange={(photo) => {
+                setData({ profileImage: photo });
+              }}
+              onSkip={() => {
+                setData({ profileImage: null });
+                setStep(5);
+              }}
+              showSkip={true}
+              userId={registrationData.id}
+            />
+            <div className="flex justify-end space-x-4">
+              <button
+                type="button"
+                onClick={() => setStep(5)}
+                className="btn-primary"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        );
+      case 5:
+        return <RegistrationReview />;
       default:
         return null;
     }
@@ -468,72 +301,68 @@ export default function Auth() {
         <div>
           <h2 className="text-center text-3xl font-display font-bold text-holy-blue-900">
             {isSignUp
-              ? showSummary
-                ? 'Review Your Account'
-                : step === 1
+              ? currentStep === 1
                 ? 'Choose Account Type'
-                : step === 2
+                : currentStep === 2
                 ? 'Create your account'
-                : 'Customize your profile'
+                : currentStep === 3
+                ? 'Set your password'
+                : currentStep === 4
+                ? 'Add Profile Photo'
+                : 'Review Your Information'
               : 'Sign in to your account'}
           </h2>
         </div>
+
+        {isSignUp && currentStep === 5 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5" />
+            <p className="text-sm text-yellow-700">
+              Please review your information carefully. Your account will only be created after you click "Create Account" below.
+            </p>
+          </div>
+        )}
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           {renderStep()}
 
-          {!showSummary && (
-            <div className="flex gap-4">
-              {(isSignUp && step > 1) && (
+          {currentStep !== 4 && (
+            <div className="flex justify-between gap-4">
+              {isSignUp && (
                 <button
                   type="button"
                   onClick={handleCancel}
-                  className="flex-1 btn-secondary"
+                  className="btn-secondary flex-1"
                 >
                   Cancel
                 </button>
               )}
               <button
                 type="submit"
-                className="flex-1 btn-primary"
+                className="btn-primary flex-1"
               >
                 {isSignUp
-                  ? step < 3
+                  ? currentStep < 5
                     ? 'Continue'
-                    : 'Review Account'
+                    : 'Create Account'
                   : 'Sign in'}
               </button>
             </div>
           )}
 
-          {!showSummary && (
+          {!isSignUp && (
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => {
-                  setIsSignUp(!isSignUp);
-                  handleCancel();
-                }}
+                onClick={() => setIsSignUp(true)}
                 className="text-sm text-holy-blue-600 hover:text-holy-blue-500"
               >
-                {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+                Don't have an account? Sign up
               </button>
             </div>
           )}
         </form>
       </div>
-
-      {croppingImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full">
-            <ImageCropper
-              image={croppingImage.file}
-              aspect={croppingImage.type === 'profile' ? 1 : 3}
-              onCropComplete={handleCropComplete}
-              onCancel={() => setCroppingImage(null)}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
