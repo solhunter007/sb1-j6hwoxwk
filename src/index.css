@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@300..700&family=Nunito:wght@200..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Nunito', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center px-6 py-3 rounded-full font-semibold text-white
+           bg-holy-blue-500 hover:bg-holy-blue-600 transition-all duration-300
+           hover:animate-glow focus:outline-none focus:ring-2 focus:ring-holy-blue-400 focus:ring-offset-2
+           relative after:absolute after:inset-0 after:rounded-full after:opacity-0 
+           after:bg-divine-yellow-400/20 after:transition-opacity hover:after:opacity-100;
+  }
+  
+  .btn-secondary {
+    @apply inline-flex items-center px-4 py-2 rounded-full font-semibold text-holy-blue-700
+           bg-holy-blue-50 hover:bg-holy-blue-100 transition-all duration-300
+           hover:animate-glow focus:outline-none focus:ring-2 focus:ring-holy-blue-400 focus:ring-offset-2
+           relative after:absolute after:inset-0 after:rounded-full after:opacity-0 
+           after:bg-divine-yellow-400/20 after:transition-opacity hover:after:opacity-100;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-md hover:shadow-lg transition-all duration-300
+           border border-holy-blue-100/50 overflow-hidden;
+  }
+}
+
+.page-transition {
+  animation: pageTransition 0.3s ease-out;
+}
+
+@keyframes pageTransition {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
