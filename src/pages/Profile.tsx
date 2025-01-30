@@ -5,12 +5,15 @@ import { supabase } from '../lib/supabase';
 import { LoadingState } from '../components/ui/LoadingState';
 import { format } from 'date-fns';
 import { Edit2, Calendar, ArrowLeft } from 'lucide-react';
+import { DefaultAvatar } from '../components/profile/DefaultAvatar';
+import { AccountSettings } from '../components/profile/AccountSettings';
 
 interface Profile {
   id: string;
   username: string;
   full_name: string;
-  avatar_url: string;
+  avatar_url: string | null;
+  header_url: string | null;
   bio: string;
   created_at: string;
   sermon_notes: Array<{
@@ -28,6 +31,7 @@ export default function Profile() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const isOwnProfile = user?.id === id;
 
   useEffect(() => {
@@ -46,6 +50,7 @@ export default function Profile() {
             username,
             full_name,
             avatar_url,
+            header_url,
             bio,
             created_at,
             sermon_notes (
@@ -107,28 +112,59 @@ export default function Profile() {
 
   if (!profile) return null;
 
+  if (showSettings && isOwnProfile) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-6">
+          <button
+            onClick={() => setShowSettings(false)}
+            className="btn-secondary inline-flex items-center"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Profile
+          </button>
+        </div>
+        <AccountSettings />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="bg-white shadow-md rounded-lg overflow-hidden">
         {/* Header Image */}
-        <div className="h-48 bg-gradient-to-r from-holy-blue-500 to-holy-blue-600" />
+        <div 
+          className="h-48 bg-gradient-to-r from-holy-blue-500 to-holy-blue-600"
+          style={profile.header_url ? {
+            backgroundImage: `url(${profile.header_url})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          } : undefined}
+        />
         
         <div className="relative px-6 pb-6">
           {/* Profile Image */}
           <div className="absolute -top-16 left-6">
             <div className="h-32 w-32 rounded-full bg-white p-1 shadow-lg">
-              <img
-                src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=256&h=256&fit=crop'}
-                alt={profile.full_name}
-                className="h-full w-full rounded-full object-cover"
-              />
+              {profile.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt={profile.full_name}
+                  className="h-full w-full rounded-full object-cover"
+                />
+              ) : (
+                <DefaultAvatar size={128} />
+              )}
             </div>
           </div>
 
           {/* Profile Actions */}
           {isOwnProfile && (
             <div className="absolute top-4 right-6">
-              <button className="btn-secondary">
+              <button 
+                onClick={() => setShowSettings(true)}
+                className="btn-secondary"
+              >
                 <Edit2 className="h-4 w-4 mr-2" />
                 Edit Profile
               </button>

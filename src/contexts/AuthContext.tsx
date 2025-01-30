@@ -7,7 +7,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (identifier: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, username: string) => Promise<void>;
+  signUp: (email: string, password: string, username: string, fullName: string, userType: string, profileImage?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -31,17 +31,107 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, username: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username,
+  const uploadProfileImage = async (userId: string, base64Image: string): Promise<string> => {
+    // Remove the data:image/jpeg;base64, prefix
+    const base64Data = base64Image.split(',')[1];
+    const fileName = `${userId}/profile.jpg`;
+
+    // Convert base64 to Uint8Array
+    const binaryData = atob(base64Data);
+    const bytes = new Uint8Array(binaryData.length);
+    for (let i = 0; i < binaryData.length; i++) {
+      bytes[i] = binaryData.charCodeAt(i);
+    }
+
+    // Upload the image
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, bytes, {
+        contentType: 'image/jpeg',
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      throw new Error('Failed to upload profile image');
+    }
+
+    // Get the public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(fileName);
+
+    return publicUrl;
+  };
+
+  const signUp = async (
+    email: string, 
+    password: string, 
+    username: string, 
+    fullName: string,
+    userType: string,
+    profileImage?: string
+  ) => {
+    try {
+      // First check if username is already taken
+      const { data: existingUser, error: checkError } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', username)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+      if (existingUser) throw new Error('Username is already taken');
+
+      // Sign up the user
+      const { data: { user }, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username,
+            full_name: fullName,
+            user_type: userType,
+          },
         },
-      },
-    });
-    if (error) throw error;
+      });
+
+      if (error) throw error;
+      if (!user) throw new Error('Failed to create account');
+
+      let avatarUrl = null;
+
+      // If we have a profile image, upload it
+      if (profileImage) {
+        try {
+          avatarUrl = await uploadProfileImage(user.id, profileImage);
+        } catch (error) {
+          console.error('Error uploading profile image:', error);
+          toast.error('Failed to upload profile image');
+        }
+      }
+
+      // Update the profile with the avatar URL if we have one
+      if (avatarUrl) {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ avatar_url: avatarUrl })
+          .eq('id', user.id);
+
+        if (updateError) {
+          console.error('Error updating profile with avatar:', updateError);
+        }
+      }
+
+      toast.success('Account created successfully!');
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error('Failed to create account');
+      }
+      throw error;
+    }
   };
 
   const signIn = async (identifier: string, password: string) => {
@@ -50,25 +140,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const isEmail = identifier.includes('@');
       
       if (isEmail) {
-        // First, check if the email exists
-        const { data: emailCheck } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', identifier)
-          .maybeSingle();
-
-        if (!emailCheck) {
-          throw new Error('Email does not exist. Please check your email address or create a new account.');
-        }
-
-        // Attempt to sign in with email
         const { error } = await supabase.auth.signInWithPassword({
           email: identifier,
           password,
         });
 
         if (error) {
-          throw new Error('The email/username or password you entered is incorrect. Please try again.');
+          throw new Error('Invalid email or password');
         }
       } else {
         // If it's not an email, assume it's a username
@@ -80,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle();
 
         if (profileError || !profile) {
-          throw new Error('The email/username or password you entered is incorrect. Please try again.');
+          throw new Error('Invalid username or password');
         }
 
         // Now sign in with the email
@@ -90,14 +168,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (error) {
-          throw new Error('The email/username or password you entered is incorrect. Please try again.');
+          throw new Error('Invalid username or password');
         }
       }
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message);
       } else {
-        toast.error('An unexpected error occurred. Please try again.');
+        toast.error('An unexpected error occurred');
       }
       throw error;
     }

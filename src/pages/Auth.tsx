@@ -51,13 +51,16 @@ export default function Auth() {
           return;
         }
 
+        // Final submission
         await signUp(
           registrationData.email!,
           registrationData.password!,
-          registrationData.username!
+          registrationData.username!,
+          registrationData.fullName!,
+          registrationData.userType!,
+          registrationData.profileImage
         );
         
-        toast.success('Account created successfully!');
         clearData();
         navigate('/');
       } else {
@@ -65,7 +68,12 @@ export default function Auth() {
         navigate('/');
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'An error occurred');
+      console.error('Registration error:', error);
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error('An unexpected error occurred');
+      }
     }
   };
 
