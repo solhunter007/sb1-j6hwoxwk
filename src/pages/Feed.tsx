@@ -38,7 +38,7 @@ export default function Feed() {
 
   useEffect(() => {
     loadSermonNotes();
-  }, [filter, searchQuery]);
+  }, [filter, searchQuery, user]);
 
   const loadSermonNotes = async () => {
     try {
@@ -62,10 +62,16 @@ export default function Feed() {
           ),
           praise_count:praises(count),
           comment_count:comments(count),
-          user_has_praised:praises!inner(user_id)
+          user_has_praised:praises!left(user_id)
         `)
-        .eq('visibility', 'public')
         .order('created_at', { ascending: false });
+
+      // Show both public notes and the user's own notes
+      if (user) {
+        query = query.or(`visibility.eq.public,author_id.eq.${user.id}`);
+      } else {
+        query = query.eq('visibility', 'public');
+      }
 
       // Apply filters
       if (filter === 'following') {
@@ -85,7 +91,15 @@ export default function Feed() {
 
       if (fetchError) throw fetchError;
 
-      setNotes(data || []);
+      // Process the data to format counts and user_has_praised correctly
+      const processedNotes = data?.map(note => ({
+        ...note,
+        praise_count: parseInt(note.praise_count) || 0,
+        comment_count: parseInt(note.comment_count) || 0,
+        user_has_praised: note.user_has_praised?.includes(user?.id) || false
+      })) || [];
+
+      setNotes(processedNotes);
     } catch (err) {
       console.error('Error loading sermon notes:', err);
       setError('Failed to load sermon notes');
@@ -121,7 +135,7 @@ export default function Feed() {
             ? {
                 ...note,
                 praise_count: currentlyPraised
-                  ? note.praise_count - 1
+                  ? Math.max(0, note.praise_count - 1)
                   : note.praise_count + 1,
                 user_has_praised: !currentlyPraised,
               }

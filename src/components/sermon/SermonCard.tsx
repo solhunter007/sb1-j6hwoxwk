@@ -105,7 +105,7 @@ export function SermonCard({ note, onPraise }: SermonCardProps) {
                 note.user_has_praised && "fill-current"
               )}
             />
-            <span>{note.praise_count}</span>
+            <span>{note.praise_count || 0}</span>
           </button>
 
           <Link
@@ -113,7 +113,7 @@ export function SermonCard({ note, onPraise }: SermonCardProps) {
             className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600"
           >
             <MessageCircle className="h-5 w-5" />
-            <span>{note.comment_count}</span>
+            <span>{note.comment_count || 0}</span>
           </Link>
 
           <button className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600 ml-auto">

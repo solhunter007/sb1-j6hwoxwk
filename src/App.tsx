@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import Home from './pages/Home';
 import Auth from './pages/Auth';
 import SermonNotes from './pages/SermonNotes';
+import NewSermonNote from './pages/SermonNotes/NewSermonNote';
 import Profile from './pages/Profile';
 import Church from './pages/Church';
 import Feed from './pages/Feed';
@@ -19,6 +20,7 @@ function App() {
             <Route path="/" element={<Feed />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/sermon-notes" element={<SermonNotes />} />
+            <Route path="/sermon-notes/new" element={<NewSermonNote />} />
             <Route path="/profile/:id" element={<Profile />} />
             <Route path="/church/:id" element={<Church />} />
           </Routes>
