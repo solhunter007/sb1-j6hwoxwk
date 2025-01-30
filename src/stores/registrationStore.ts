@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface RegistrationData {
+  id?: string;
   email: string;
   username: string;
   password: string;
@@ -24,6 +25,9 @@ interface RegistrationStore {
   clearData: () => void;
 }
 
+// Set expiration time to 1 hour
+const EXPIRATION_TIME = 1000 * 60 * 60; // 1 hour in milliseconds
+
 export const useRegistrationStore = create<RegistrationStore>()(
   persist(
     (set) => ({
@@ -41,6 +45,27 @@ export const useRegistrationStore = create<RegistrationStore>()(
         data: state.data,
         currentStep: state.currentStep,
       }),
+      // Add storage event listener to clear data after expiration
+      onRehydrateStorage: () => {
+        return (state) => {
+          if (state) {
+            const stored = localStorage.getItem('registration-store');
+            if (stored) {
+              const { timestamp } = JSON.parse(stored);
+              if (Date.now() - timestamp > EXPIRATION_TIME) {
+                state.clearData();
+              }
+            }
+          }
+        };
+      },
+      // Add timestamp to storage
+      serialize: (state) => {
+        return JSON.stringify({
+          ...state,
+          timestamp: Date.now(),
+        });
+      },
     }
   )
 );

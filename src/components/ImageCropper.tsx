@@ -24,6 +24,7 @@ export default function ImageCropper({
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const onCropChange = (location: Point) => {
     setCrop(location);
@@ -33,69 +34,67 @@ export default function ImageCropper({
     setZoom(newZoom);
   };
 
-  const onCropAreaChange = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
-    if (croppedAreaPixels.width < minWidth || croppedAreaPixels.height < minHeight) {
-      return; // Prevent crop if below minimum dimensions
-    }
+  const onCropAreaChange = useCallback((_: Area, croppedAreaPixels: Area) => {
     setCroppedAreaPixels(croppedAreaPixels);
-  }, [minWidth, minHeight]);
+  }, []);
 
-  const createCroppedImage = useCallback(async () => {
+  const createImage = (url: string): Promise<HTMLImageElement> =>
+    new Promise((resolve, reject) => {
+      const image = new Image();
+      image.addEventListener('load', () => resolve(image));
+      image.addEventListener('error', (error) => reject(error));
+      image.src = url;
+    });
+
+  const getCroppedImg = async (
+    imageSrc: string,
+    pixelCrop: Area,
+  ): Promise<string> => {
+    const image = await createImage(imageSrc);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      throw new Error('No 2d context');
+    }
+
+    // Set canvas size to desired output size
+    canvas.width = 400;
+    canvas.height = 400;
+
+    // Draw the cropped image
+    ctx.drawImage(
+      image,
+      pixelCrop.x,
+      pixelCrop.y,
+      pixelCrop.width,
+      pixelCrop.height,
+      0,
+      0,
+      400,
+      400
+    );
+
+    return new Promise((resolve, reject) => {
+      try {
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
+      } catch (e) {
+        reject(e);
+      }
+    });
+  };
+
+  const handleCrop = async () => {
     try {
       if (!croppedAreaPixels) return;
 
-      const img = new Image();
-      img.crossOrigin = "anonymous"; // Enable CORS
-      
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = image;
-      });
-
-      // Create canvas for full size image
-      const canvas = document.createElement('canvas');
-      canvas.width = 400;
-      canvas.height = 400;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      // Draw and scale the cropped image
-      ctx.drawImage(
-        img,
-        croppedAreaPixels.x,
-        croppedAreaPixels.y,
-        croppedAreaPixels.width,
-        croppedAreaPixels.height,
-        0,
-        0,
-        400,
-        400
-      );
-
-      // Create thumbnail canvas
-      const thumbnailCanvas = document.createElement('canvas');
-      thumbnailCanvas.width = 100;
-      thumbnailCanvas.height = 100;
-      const thumbCtx = thumbnailCanvas.getContext('2d');
-      if (!thumbCtx) return;
-
-      // Draw thumbnail
-      thumbCtx.drawImage(canvas, 0, 0, 100, 100);
-
-      // Get both images as data URLs
-      const fullSize = canvas.toDataURL('image/jpeg', 0.9);
-      onCropComplete(fullSize);
+      const croppedImage = await getCroppedImg(image, croppedAreaPixels);
+      onCropComplete(croppedImage);
     } catch (e) {
-      console.error('Error creating cropped image:', e);
+      console.error(e);
+      setError('Failed to process image. Please try again.');
     }
-  }, [croppedAreaPixels, image, onCropComplete]);
-
-  const onMediaLoaded = useCallback(() => {
-    setIsImageLoaded(true);
-    setZoom(1); // Reset zoom when new image is loaded
-    setCrop({ x: 0, y: 0 }); // Reset position
-  }, []);
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center p-4">
@@ -121,7 +120,7 @@ export default function ImageCropper({
             onCropChange={onCropChange}
             onZoomChange={onZoomChange}
             onCropComplete={onCropAreaChange}
-            onMediaLoaded={onMediaLoaded}
+            onMediaLoaded={() => setIsImageLoaded(true)}
             minZoom={0.5}
             maxZoom={3}
             cropShape="round"
@@ -135,6 +134,11 @@ export default function ImageCropper({
               cropAreaStyle: {
                 border: '2px solid #3b82f6',
                 boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)'
+              },
+              mediaStyle: {
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain'
               }
             }}
           />
@@ -145,6 +149,12 @@ export default function ImageCropper({
             </span>
           </div>
         </div>
+
+        {error && (
+          <div className="p-4 bg-red-50 border-y border-red-100">
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+        )}
 
         <div className="p-4 bg-holy-blue-50 space-y-4">
           <div className="flex items-center gap-4">
@@ -170,9 +180,9 @@ export default function ImageCropper({
               Cancel
             </button>
             <button
-              onClick={createCroppedImage}
+              onClick={handleCrop}
               className="btn-primary"
-              disabled={!croppedAreaPixels || !isImageLoaded}
+              disabled={!isImageLoaded || !croppedAreaPixels}
             >
               Apply
             </button>

@@ -3,8 +3,7 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
-import { UserType } from '../types/auth';
-import { ImageUp as ImageUpload, Church, User as UserIcon, AlertTriangle } from 'lucide-react';
+import { ImageUp as ImageUpload, Church, User as UserIcon } from 'lucide-react';
 import ImageCropper from '../components/ImageCropper';
 import { RegistrationReview } from '../components/auth/RegistrationReview';
 import { useRegistrationStore } from '../stores/registrationStore';
@@ -30,7 +29,6 @@ export default function Auth() {
   const password = watch('password');
 
   useEffect(() => {
-    // Clear registration data when component unmounts
     return () => {
       if (!isSignUp) {
         clearData();
@@ -48,13 +46,11 @@ export default function Auth() {
     try {
       if (isSignUp) {
         if (currentStep < 5) {
-          // Store form data and move to next step
           setData(formData);
           setStep(currentStep + 1);
           return;
         }
 
-        // Final submission
         await signUp(
           registrationData.email!,
           registrationData.password!,
@@ -313,15 +309,6 @@ export default function Auth() {
               : 'Sign in to your account'}
           </h2>
         </div>
-
-        {isSignUp && currentStep === 5 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5" />
-            <p className="text-sm text-yellow-700">
-              Please review your information carefully. Your account will only be created after you click "Create Account" below.
-            </p>
-          </div>
-        )}
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           {renderStep()}

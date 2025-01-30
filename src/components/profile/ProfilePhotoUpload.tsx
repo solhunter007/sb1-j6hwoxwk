@@ -25,7 +25,6 @@ export function ProfilePhotoUpload({
   const [error, setError] = useState<string | null>(null);
   const [cropImage, setCropImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,56 +43,38 @@ export function ProfilePhotoUpload({
       return;
     }
 
-    // Create image object to check dimensions
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
+    // Read file as data URL
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
       
-      if (img.width < 400 || img.height < 400) {
-        setError('Image dimensions must be at least 400x400 pixels');
-        return;
-      }
+      // Create image object to check dimensions
+      const img = new Image();
+      img.onload = () => {
+        if (img.width < 400 || img.height < 400) {
+          setError('Image dimensions must be at least 400x400 pixels');
+          return;
+        }
 
-      // Clear any previous errors
-      setError(null);
-      setUploadProgress(0);
-      
-      // Start cropping process
-      setCropImage(objectUrl);
+        // Clear any previous errors
+        setError(null);
+        
+        // Start cropping process
+        setCropImage(dataUrl);
+      };
+
+      img.onerror = () => {
+        setError('Failed to load image. Please try another file.');
+      };
+
+      img.src = dataUrl;
     };
 
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      setError('Failed to load image. Please try another file.');
+    reader.onerror = () => {
+      setError('Failed to read image file. Please try again.');
     };
 
-    img.src = objectUrl;
-  };
-
-  const uploadToStorage = async (imageData: string, type: 'full' | 'thumb'): Promise<string> => {
-    if (!userId) throw new Error('User ID is required for upload');
-
-    const base64Data = imageData.split(',')[1];
-    const fileData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-    
-    const filePath = `${userId}/${type === 'full' ? 'profile' : 'thumbnail'}.jpg`;
-    
-    const { error: uploadError, data } = await supabase.storage
-      .from('profile-photos')
-      .upload(filePath, fileData, {
-        contentType: 'image/jpeg',
-        upsert: true
-      });
-
-    if (uploadError) throw uploadError;
-    
-    const { data: { publicUrl } } = supabase.storage
-      .from('profile-photos')
-      .getPublicUrl(filePath);
-
-    return publicUrl;
+    reader.readAsDataURL(file);
   };
 
   const handleCropComplete = async (croppedImage: string) => {
@@ -101,30 +82,16 @@ export function ProfilePhotoUpload({
       setIsUploading(true);
       setCropImage(null);
 
-      // Upload both full size and thumbnail
-      const fullSizeUrl = await uploadToStorage(croppedImage, 'full');
-      setUploadProgress(50);
+      // For registration, we'll store the cropped image data temporarily
+      // It will be uploaded to storage after the user account is created
+      onPhotoChange(croppedImage);
       
-      // Update user profile with new photo URL
-      if (userId) {
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ avatar_url: fullSizeUrl })
-          .eq('id', userId);
-
-        if (updateError) throw updateError;
-      }
-
-      setUploadProgress(100);
-      onPhotoChange(fullSizeUrl);
-      toast.success('Profile photo updated successfully');
     } catch (error) {
-      console.error('Upload error:', error);
-      setError('Failed to upload image. Please try again.');
-      toast.error('Failed to update profile photo');
+      console.error('Error processing image:', error);
+      setError('Failed to process image. Please try again.');
+      toast.error('Failed to process image');
     } finally {
       setIsUploading(false);
-      setUploadProgress(0);
     }
   };
 
@@ -153,10 +120,7 @@ export function ProfilePhotoUpload({
         <div className="relative w-40 h-40 mx-auto">
           {isUploading ? (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-full">
-              <div className="text-center">
-                <Loader2 className="h-8 w-8 animate-spin text-white mx-auto" />
-                <p className="text-white text-sm mt-2">{uploadProgress}%</p>
-              </div>
+              <Loader2 className="h-8 w-8 animate-spin text-white" />
             </div>
           ) : (
             <>
@@ -200,7 +164,7 @@ export function ProfilePhotoUpload({
 
       <div className="text-center space-y-3">
         <button
-          type="button" // Explicitly set type to button
+          type="button"
           onClick={handleUploadClick}
           className="btn-primary"
           disabled={isUploading}
@@ -208,7 +172,7 @@ export function ProfilePhotoUpload({
           {isUploading ? (
             <>
               <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-              Uploading...
+              Processing...
             </>
           ) : (
             'Upload Image'
@@ -218,7 +182,7 @@ export function ProfilePhotoUpload({
         {showSkip && !isUploading && (
           <div>
             <button
-              type="button" // Explicitly set type to button
+              type="button"
               onClick={handleSkipClick}
               className="text-sm text-holy-blue-600 hover:text-holy-blue-700"
             >
