@@ -4,9 +4,9 @@ import { supabase } from '../lib/supabase';
 import { SermonCard } from '../components/sermon/SermonCard';
 import { FeedFilters } from '../components/feed/FeedFilters';
 import { LoadingState } from '../components/ui/LoadingState';
-import { Scroll, AlertCircle } from 'lucide-react';
+import { Scroll, AlertCircle, PenSquare } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatDistanceToNow } from 'date-fns';
+import { Link } from 'react-router-dom';
 
 interface SermonNote {
   id: string;
@@ -136,9 +136,28 @@ export default function Feed() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Hero Section with CTA */}
+      <div className="text-center py-12 mb-8 bg-gradient-to-br from-holy-blue-50 to-white rounded-2xl border border-holy-blue-100 shadow-sm">
+        <h1 className="text-4xl font-bold text-holy-blue-900 mb-4">
+          Share Your Spiritual Insights
+        </h1>
+        <p className="text-lg text-holy-blue-600 mb-8 max-w-2xl mx-auto">
+          Capture and share your sermon reflections with the community
+        </p>
+        <Link
+          to="/sermon-notes/new"
+          className="btn-primary inline-flex items-center px-8 py-4 text-lg group relative"
+          aria-label="Create new sermon notes"
+        >
+          <PenSquare className="h-6 w-6 mr-2 group-hover:animate-bounce" />
+          New Sermon Notes
+          <span className="absolute inset-0 rounded-full bg-white/20 animate-ping" />
+        </Link>
+      </div>
+
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 space-y-4 md:space-y-0">
         <div>
-          <h1 className="text-3xl font-bold text-holy-blue-900">Your Feed</h1>
+          <h2 className="text-2xl font-bold text-holy-blue-900">Your Feed</h2>
           <p className="text-holy-blue-600 mt-1">
             Discover and engage with sermon notes from your community
           </p>
