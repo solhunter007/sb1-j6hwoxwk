@@ -40,6 +40,10 @@ export function SermonCard({ note, onPraise }: SermonCardProps) {
     }
   };
 
+  // Ensure counts are numbers
+  const praiseCount = typeof note.praise_count === 'number' ? note.praise_count : 0;
+  const commentCount = typeof note.comment_count === 'number' ? note.comment_count : 0;
+
   return (
     <article className="bg-white rounded-lg shadow-sm border border-holy-blue-100 overflow-hidden hover:shadow-md transition-shadow">
       <div className="p-6">
@@ -105,7 +109,7 @@ export function SermonCard({ note, onPraise }: SermonCardProps) {
                 note.user_has_praised && "fill-current"
               )}
             />
-            <span>{note.praise_count || 0}</span>
+            <span>{praiseCount}</span>
           </button>
 
           <Link
@@ -113,7 +117,7 @@ export function SermonCard({ note, onPraise }: SermonCardProps) {
             className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600"
           >
             <MessageCircle className="h-5 w-5" />
-            <span>{note.comment_count || 0}</span>
+            <span>{commentCount}</span>
           </Link>
 
           <button className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600 ml-auto">
