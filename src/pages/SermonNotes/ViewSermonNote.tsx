@@ -8,6 +8,7 @@ import { DefaultAvatar } from '../../components/profile/DefaultAvatar';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../utils/cn';
 import { usePraiseStore } from '../../stores/praiseStore';
+import { CommentSection } from '../../components/comments/CommentSection';
 import { toast } from 'sonner';
 
 interface SermonNote {
@@ -183,92 +184,110 @@ const ViewSermonNote = () => {
         Back
       </button>
 
-      <article className="bg-white rounded-lg shadow-sm border border-holy-blue-100">
-        <div className="p-8">
-          {/* Author Info */}
-          <div className="flex items-center mb-6">
-            <div className="flex items-center">
-              {note.author.avatar_url ? (
-                <img
-                  src={note.author.avatar_url}
-                  alt={note.author.full_name}
-                  className="h-12 w-12 rounded-full object-cover"
-                />
-              ) : (
-                <div className="h-12 w-12 rounded-full overflow-hidden">
-                  <DefaultAvatar size={48} />
+      <article className="space-y-6">
+        <div className="bg-white rounded-lg shadow-sm border border-holy-blue-100">
+          <div className="p-8">
+            {/* Author Info */}
+            <div className="flex items-center mb-6">
+              <div className="flex items-center">
+                {note.author.avatar_url ? (
+                  <img
+                    src={note.author.avatar_url}
+                    alt={note.author.full_name}
+                    className="h-12 w-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="h-12 w-12 rounded-full overflow-hidden">
+                    <DefaultAvatar size={48} />
+                  </div>
+                )}
+                <div className="ml-3">
+                  <h3 className="text-holy-blue-900 font-semibold">
+                    {note.author.full_name}
+                  </h3>
+                  <p className="text-holy-blue-600 text-sm">@{note.author.username}</p>
                 </div>
-              )}
-              <div className="ml-3">
-                <h3 className="text-holy-blue-900 font-semibold">
-                  {note.author.full_name}
-                </h3>
-                <p className="text-holy-blue-600 text-sm">@{note.author.username}</p>
+              </div>
+              <span className="ml-auto text-sm text-holy-blue-500">
+                {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
+              </span>
+            </div>
+
+            {/* Scripture References */}
+            {note.scripture_references && note.scripture_references.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-6">
+                {note.scripture_references.map((reference, index) => (
+                  <div
+                    key={index}
+                    className="inline-flex items-center px-3 py-1 rounded-full bg-holy-blue-50 text-holy-blue-600 text-sm"
+                  >
+                    <BookOpen className="h-4 w-4 mr-1" />
+                    {reference}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Content */}
+            <div className="prose max-w-none">
+              <h1 className="text-3xl font-bold text-holy-blue-900 mb-6">
+                {note.title}
+              </h1>
+              <div className="text-holy-blue-800">
+                {renderContent(note.content)}
               </div>
             </div>
-            <span className="ml-auto text-sm text-holy-blue-500">
-              {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
-            </span>
-          </div>
 
-          {/* Scripture References */}
-          {note.scripture_references && note.scripture_references.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-6">
-              {note.scripture_references.map((reference, index) => (
-                <div
-                  key={index}
-                  className="inline-flex items-center px-3 py-1 rounded-full bg-holy-blue-50 text-holy-blue-600 text-sm"
-                >
-                  <BookOpen className="h-4 w-4 mr-1" />
-                  {reference}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Content */}
-          <div className="prose max-w-none">
-            <h1 className="text-3xl font-bold text-holy-blue-900 mb-6">
-              {note.title}
-            </h1>
-            <div className="text-holy-blue-800">
-              {renderContent(note.content)}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-6 pt-6 mt-6 border-t border-holy-blue-100">
-            <button
-              onClick={handlePraise}
-              disabled={!user}
-              className={cn(
-                "flex items-center gap-2 text-sm transition-colors",
-                note.user_has_praised
-                  ? "text-divine-yellow-500 hover:text-divine-yellow-600"
-                  : "text-holy-blue-500 hover:text-holy-blue-600",
-                !user && "opacity-50 cursor-not-allowed"
-              )}
-              title={!user ? "Sign in to praise" : note.user_has_praised ? "Remove Praise" : "Praise"}
-            >
-              <HelpingHand
+            {/* Actions */}
+            <div className="flex items-center gap-6 pt-6 mt-6 border-t border-holy-blue-100">
+              <button
+                onClick={handlePraise}
+                disabled={!user}
                 className={cn(
-                  "h-5 w-5",
-                  note.user_has_praised && "fill-divine-yellow-500"
+                  "flex items-center gap-2 text-sm transition-colors",
+                  note.user_has_praised
+                    ? "text-divine-yellow-500 hover:text-divine-yellow-600"
+                    : "text-holy-blue-500 hover:text-holy-blue-600",
+                  !user && "opacity-50 cursor-not-allowed"
                 )}
-              />
-              <span>{praiseCount}</span>
-            </button>
+                title={!user ? "Sign in to praise" : note.user_has_praised ? "Remove Praise" : "Praise"}
+              >
+                <HelpingHand
+                  className={cn(
+                    "h-5 w-5",
+                    note.user_has_praised && "fill-divine-yellow-500"
+                  )}
+                />
+                <span>{praiseCount}</span>
+              </button>
 
-            <button className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600">
-              <MessageCircle className="h-5 w-5" />
-              <span>{commentCount}</span>
-            </button>
+              <a
+                href="#comments"
+                className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600"
+              >
+                <MessageCircle className="h-5 w-5" />
+                <span>{commentCount}</span>
+              </a>
 
-            <button className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600 ml-auto">
-              <Share2 className="h-5 w-5" />
-              Share
-            </button>
+              <button className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600 ml-auto">
+                <Share2 className="h-5 w-5" />
+                Share
+              </button>
+            </div>
           </div>
+        </div>
+
+        {/* Comments Section */}
+        <div id="comments">
+          <CommentSection
+            sermonNoteId={note.id}
+            onCommentAdded={() => {
+              setNote(prev => prev ? {
+                ...prev,
+                comment_count: prev.comment_count + 1
+              } : null);
+            }}
+          />
         </div>
       </article>
     </div>

@@ -6,7 +6,7 @@ import { DefaultAvatar } from '../profile/DefaultAvatar';
 import { cn } from '../../utils/cn';
 import { usePraiseStore } from '../../stores/praiseStore';
 import { useAuth } from '../../contexts/AuthContext';
-import { toast } from 'sonner';
+import { CommentSection } from '../comments/CommentSection';
 
 interface SermonNote {
   id: string;
@@ -27,9 +27,10 @@ interface SermonNote {
 
 interface SermonCardProps {
   note: SermonNote;
+  showComments?: boolean;
 }
 
-export function SermonCard({ note }: SermonCardProps) {
+export function SermonCard({ note, showComments = false }: SermonCardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -51,7 +52,6 @@ export function SermonCard({ note }: SermonCardProps) {
     e.preventDefault();
 
     if (!user) {
-      toast.error('Please sign in to praise sermon notes');
       navigate('/auth', { 
         state: { from: location },
         replace: true 
@@ -64,13 +64,8 @@ export function SermonCard({ note }: SermonCardProps) {
     try {
       setIsLoading(true);
       await togglePraise(note.id);
-      toast.success(
-        hasPraised ? 'Praise removed' : 'Sermon note praised!',
-        { duration: 2000 }
-      );
     } catch (error) {
       console.error('Error toggling praise:', error);
-      toast.error('Failed to update praise. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -157,7 +152,7 @@ export function SermonCard({ note }: SermonCardProps) {
           </button>
 
           <Link
-            to={`/sermon-notes/${note.id}`}
+            to={`/sermon-notes/${note.id}#comments`}
             className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600"
           >
             <MessageCircle className="h-5 w-5" />
@@ -170,6 +165,18 @@ export function SermonCard({ note }: SermonCardProps) {
           </button>
         </div>
       </div>
+
+      {/* Comments Section */}
+      {showComments && (
+        <div className="border-t border-holy-blue-100 p-6">
+          <CommentSection
+            sermonNoteId={note.id}
+            onCommentAdded={() => {
+              note.comment_count += 1;
+            }}
+          />
+        </div>
+      )}
     </article>
   );
 }
