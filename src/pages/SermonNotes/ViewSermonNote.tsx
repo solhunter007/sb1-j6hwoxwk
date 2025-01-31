@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -7,6 +7,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { DefaultAvatar } from '../../components/profile/DefaultAvatar';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../utils/cn';
+import { usePraiseStore } from '../../stores/praiseStore';
+import { toast } from 'sonner';
 
 interface SermonNote {
   id: string;
@@ -32,12 +34,23 @@ const ViewSermonNote = () => {
   const [note, setNote] = useState<SermonNote | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { togglePraise, syncPraiseCount } = usePraiseStore();
 
   useEffect(() => {
-    loadSermonNote();
+    if (id) {
+      loadSermonNote();
+    }
   }, [id]);
 
+  useEffect(() => {
+    if (note) {
+      syncPraiseCount(note.id);
+    }
+  }, [note, syncPraiseCount]);
+
   const loadSermonNote = async () => {
+    if (!id) return;
+
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -63,7 +76,6 @@ const ViewSermonNote = () => {
 
       if (error) throw error;
 
-      // Process the data to format user_has_praised correctly
       const processedNote = {
         ...data,
         praise_count: parseInt(data.praise_count) || 0,
@@ -72,6 +84,7 @@ const ViewSermonNote = () => {
       };
 
       setNote(processedNote);
+      setError(null);
     } catch (err) {
       console.error('Error loading sermon note:', err);
       setError('Failed to load sermon note');
@@ -84,30 +97,19 @@ const ViewSermonNote = () => {
     if (!user || !note) return;
 
     try {
-      if (note.user_has_praised) {
-        await supabase
-          .from('praises')
-          .delete()
-          .eq('sermon_note_id', note.id)
-          .eq('user_id', user.id);
-      } else {
-        await supabase
-          .from('praises')
-          .insert({ sermon_note_id: note.id, user_id: user.id });
-      }
-
+      await togglePraise(note.id);
+      
+      // Update local state
       setNote(prev => {
         if (!prev) return null;
         return {
           ...prev,
-          praise_count: prev.user_has_praised
-            ? Math.max(0, prev.praise_count - 1)
-            : prev.praise_count + 1,
           user_has_praised: !prev.user_has_praised,
+          praise_count: prev.user_has_praised ? prev.praise_count - 1 : prev.praise_count + 1
         };
       });
     } catch (error) {
-      console.error('Error toggling praise:', error);
+      toast.error('Failed to update praise');
     }
   };
 
@@ -131,6 +133,45 @@ const ViewSermonNote = () => {
       </div>
     );
   }
+
+  // Ensure counts are valid numbers
+  const praiseCount = typeof note.praise_count === 'number' ? note.praise_count : 0;
+  const commentCount = typeof note.comment_count === 'number' ? note.comment_count : 0;
+
+  // Render the content blocks
+  const renderContent = (content: any) => {
+    if (!content || !content.content) return null;
+
+    return content.content.map((block: any, index: number) => {
+      switch (block.type) {
+        case 'paragraph':
+          return (
+            <p key={index} className="mb-4">
+              {block.content?.[0]?.text || ''}
+            </p>
+          );
+        case 'heading':
+          const HeadingTag = `h${block.attrs.level}` as keyof JSX.IntrinsicElements;
+          return (
+            <HeadingTag key={index} className="font-bold mb-4">
+              {block.content?.[0]?.text || ''}
+            </HeadingTag>
+          );
+        case 'bulletList':
+          return (
+            <ul key={index} className="list-disc pl-6 mb-4">
+              {block.content.map((item: any, itemIndex: number) => (
+                <li key={itemIndex}>
+                  {item.content?.[0]?.content?.[0]?.text || ''}
+                </li>
+              ))}
+            </ul>
+          );
+        default:
+          return null;
+      }
+    });
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -191,35 +232,7 @@ const ViewSermonNote = () => {
               {note.title}
             </h1>
             <div className="text-holy-blue-800">
-              {note.content.content.map((block: any, index: number) => {
-                switch (block.type) {
-                  case 'paragraph':
-                    return (
-                      <p key={index} className="mb-4">
-                        {block.content?.[0]?.text || ''}
-                      </p>
-                    );
-                  case 'heading':
-                    const HeadingTag = `h${block.attrs.level}` as keyof JSX.IntrinsicElements;
-                    return (
-                      <HeadingTag key={index} className="font-bold mb-4">
-                        {block.content?.[0]?.text || ''}
-                      </HeadingTag>
-                    );
-                  case 'bulletList':
-                    return (
-                      <ul key={index} className="list-disc pl-6 mb-4">
-                        {block.content.map((item: any, itemIndex: number) => (
-                          <li key={itemIndex}>
-                            {item.content?.[0]?.content?.[0]?.text || ''}
-                          </li>
-                        ))}
-                      </ul>
-                    );
-                  default:
-                    return null;
-                }
-              })}
+              {renderContent(note.content)}
             </div>
           </div>
 
@@ -227,13 +240,15 @@ const ViewSermonNote = () => {
           <div className="flex items-center gap-6 pt-6 mt-6 border-t border-holy-blue-100">
             <button
               onClick={handlePraise}
+              disabled={!user}
               className={cn(
                 "flex items-center gap-2 text-sm transition-colors",
                 note.user_has_praised
                   ? "text-divine-yellow-500 hover:text-divine-yellow-600"
-                  : "text-holy-blue-500 hover:text-holy-blue-600"
+                  : "text-holy-blue-500 hover:text-holy-blue-600",
+                !user && "opacity-50 cursor-not-allowed"
               )}
-              title={note.user_has_praised ? "Remove Praise" : "Praise"}
+              title={!user ? "Sign in to praise" : note.user_has_praised ? "Remove Praise" : "Praise"}
             >
               <HelpingHand
                 className={cn(
@@ -241,12 +256,12 @@ const ViewSermonNote = () => {
                   note.user_has_praised && "fill-divine-yellow-500"
                 )}
               />
-              <span>{note.praise_count}</span>
+              <span>{praiseCount}</span>
             </button>
 
             <button className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600">
               <MessageCircle className="h-5 w-5" />
-              <span>{note.comment_count}</span>
+              <span>{commentCount}</span>
             </button>
 
             <button className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600 ml-auto">

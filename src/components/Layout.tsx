@@ -1,10 +1,11 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Scroll, Home, User, Church, Bell, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function Layout() {
   const { user, signOut } = useAuth();
+  const location = useLocation();
 
   const handleSignOut = async () => {
     try {
@@ -31,15 +32,36 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Link>
               
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                <Link to="/" className="inline-flex items-center px-1 pt-1 text-sm font-medium text-holy-blue-900 hover:text-holy-blue-600 transition-colors">
+                <Link 
+                  to="/feed" 
+                  className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors ${
+                    location.pathname === '/feed' 
+                      ? 'text-holy-blue-900' 
+                      : 'text-holy-blue-600/70 hover:text-holy-blue-600'
+                  }`}
+                >
                   <Home className="h-4 w-4 mr-1" />
                   Home
                 </Link>
-                <Link to="/sermon-notes" className="inline-flex items-center px-1 pt-1 text-sm font-medium text-holy-blue-600/70 hover:text-holy-blue-600 transition-colors">
+                <Link 
+                  to="/sermon-notes" 
+                  className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors ${
+                    location.pathname.includes('/sermon-notes') 
+                      ? 'text-holy-blue-900' 
+                      : 'text-holy-blue-600/70 hover:text-holy-blue-600'
+                  }`}
+                >
                   <Scroll className="h-4 w-4 mr-1" />
                   Sermon Notes
                 </Link>
-                <Link to="/churches" className="inline-flex items-center px-1 pt-1 text-sm font-medium text-holy-blue-600/70 hover:text-holy-blue-600 transition-colors">
+                <Link 
+                  to="/churches" 
+                  className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors ${
+                    location.pathname.includes('/church') 
+                      ? 'text-holy-blue-900' 
+                      : 'text-holy-blue-600/70 hover:text-holy-blue-600'
+                  }`}
+                >
                   <Church className="h-4 w-4 mr-1" />
                   Churches
                 </Link>
@@ -77,7 +99,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 page-transition">
-        {children}
+        <Outlet />
       </main>
     </div>
   );

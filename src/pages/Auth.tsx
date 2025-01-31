@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { ImageUp as ImageUpload, Church, User as UserIcon } from 'lucide-react';
@@ -14,8 +14,9 @@ export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [croppingImage, setCroppingImage] = useState<{ file: string; type: 'profile' | 'header' } | null>(null);
   
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { register, handleSubmit, watch, formState: { errors }, reset } = useForm();
   
   const {
@@ -27,6 +28,14 @@ export default function Auth() {
   } = useRegistrationStore();
 
   const password = watch('password');
+
+  // Redirect if user is already authenticated
+  useEffect(() => {
+    if (user) {
+      const from = (location.state as any)?.from?.pathname || '/feed';
+      navigate(from, { replace: true });
+    }
+  }, [user, navigate, location]);
 
   useEffect(() => {
     return () => {
@@ -62,13 +71,14 @@ export default function Auth() {
         );
         
         clearData();
-        navigate('/');
+        navigate('/feed');
       } else {
         await signIn(formData.identifier, formData.password);
-        navigate('/');
+        const from = (location.state as any)?.from?.pathname || '/feed';
+        navigate(from, { replace: true });
       }
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error('Authentication error:', error);
       if (error instanceof Error) {
         toast.error(error.message);
       } else {

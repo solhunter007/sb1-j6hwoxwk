@@ -66,9 +66,11 @@ export default function SermonNotes() {
 
       if (error) throw error;
 
-      // Process the data to format user_has_praised correctly
+      // Process the data to format counts and user_has_praised correctly
       const processedNotes = data?.map(note => ({
         ...note,
+        praise_count: parseInt(note.praise_count) || 0,
+        comment_count: parseInt(note.comment_count) || 0,
         user_has_praised: note.user_has_praised?.includes(user.id) || false
       })) || [];
 
@@ -77,41 +79,6 @@ export default function SermonNotes() {
       console.error('Error loading user notes:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handlePraise = async (noteId: string, currentlyPraised: boolean) => {
-    if (!user) return;
-
-    try {
-      if (currentlyPraised) {
-        await supabase
-          .from('praises')
-          .delete()
-          .eq('sermon_note_id', noteId)
-          .eq('user_id', user.id);
-      } else {
-        await supabase
-          .from('praises')
-          .insert({ sermon_note_id: noteId, user_id: user.id });
-      }
-
-      // Update local state
-      setNotes(prevNotes =>
-        prevNotes.map(note =>
-          note.id === noteId
-            ? {
-                ...note,
-                praise_count: currentlyPraised
-                  ? note.praise_count - 1
-                  : note.praise_count + 1,
-                user_has_praised: !currentlyPraised,
-              }
-            : note
-        )
-      );
-    } catch (error) {
-      console.error('Error toggling praise:', error);
     }
   };
 
@@ -168,7 +135,6 @@ export default function SermonNotes() {
                 <SermonCard
                   key={note.id}
                   note={note}
-                  onPraise={() => handlePraise(note.id, note.user_has_praised)}
                 />
               ))}
             </div>

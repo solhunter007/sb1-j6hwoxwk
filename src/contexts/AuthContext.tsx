@@ -18,17 +18,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
+    // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
+      if (mounted) {
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
     });
 
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
+      if (mounted) {
+        if (!session) {
+          // Clear all local storage on logout
+          localStorage.clear();
+        }
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const uploadProfileImage = async (userId: string, base64Image: string): Promise<string> => {
@@ -138,6 +153,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      // Clear all local storage
+      localStorage.clear();
+      
+      // Use window.location.replace for a clean redirect
+      window.location.replace('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      // Clear state even on error
+      setUser(null);
+      localStorage.clear();
+      window.location.replace('/');
+    }
+  };
+
   const signIn = async (identifier: string, password: string) => {
     try {
       // Check if identifier is an email (contains @)
@@ -182,25 +216,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         toast.error('An unexpected error occurred');
       }
       throw error;
-    }
-  };
-
-  const signOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      // Clear any local storage data
-      localStorage.removeItem('registration-store');
-      
-      // Redirect to home page
-      window.location.href = '/';
-    } catch (error) {
-      console.error('Error signing out:', error);
-      // Even if there's an error, we should clear local state
-      setUser(null);
-      localStorage.removeItem('registration-store');
-      window.location.href = '/';
     }
   };
 

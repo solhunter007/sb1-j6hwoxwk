@@ -109,45 +109,6 @@ export default function Feed() {
     }
   };
 
-  const handlePraise = async (noteId: string, currentlyPraised: boolean) => {
-    if (!user) {
-      toast.error('Please sign in to praise sermon notes');
-      return;
-    }
-
-    try {
-      if (currentlyPraised) {
-        await supabase
-          .from('praises')
-          .delete()
-          .eq('sermon_note_id', noteId)
-          .eq('user_id', user.id);
-      } else {
-        await supabase
-          .from('praises')
-          .insert({ sermon_note_id: noteId, user_id: user.id });
-      }
-
-      // Update local state
-      setNotes(prevNotes =>
-        prevNotes.map(note =>
-          note.id === noteId
-            ? {
-                ...note,
-                praise_count: currentlyPraised
-                  ? Math.max(0, note.praise_count - 1)
-                  : note.praise_count + 1,
-                user_has_praised: !currentlyPraised,
-              }
-            : note
-        )
-      );
-    } catch (error) {
-      console.error('Error toggling praise:', error);
-      toast.error('Failed to update praise');
-    }
-  };
-
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Hero Section with CTA */}
@@ -198,7 +159,6 @@ export default function Feed() {
             <SermonCard
               key={note.id}
               note={note}
-              onPraise={() => handlePraise(note.id, note.user_has_praised)}
             />
           ))}
         </div>
