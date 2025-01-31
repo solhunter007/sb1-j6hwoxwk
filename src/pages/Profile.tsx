@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { Edit2, Calendar, ArrowLeft } from 'lucide-react';
 import { DefaultAvatar } from '../components/profile/DefaultAvatar';
 import { AccountSettings } from '../components/profile/AccountSettings';
+import { usePraiseStore } from '../stores/praiseStore';
 
 interface Profile {
   id: string;
@@ -33,6 +34,7 @@ export default function Profile() {
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const isOwnProfile = user?.id === id;
+  const { initializePraiseState } = usePraiseStore();
 
   useEffect(() => {
     async function loadProfile() {
@@ -74,6 +76,14 @@ export default function Profile() {
         }
 
         setProfile(profileData);
+
+        // Initialize praise state for all sermon notes
+        if (profileData.sermon_notes) {
+          await Promise.all(
+            profileData.sermon_notes.map(note => initializePraiseState(note.id))
+          );
+        }
+
         setError(null);
       } catch (err) {
         console.error('Error loading profile:', err);
@@ -84,7 +94,7 @@ export default function Profile() {
     }
 
     loadProfile();
-  }, [id]);
+  }, [id, initializePraiseState]);
 
   if (loading) return <LoadingState />;
 

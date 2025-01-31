@@ -13,6 +13,7 @@ interface PraiseState {
   initializePraiseState: (noteId: string) => Promise<void>;
   syncPraiseCount: (noteId: string) => Promise<void>;
   clearAllPraises: () => void;
+  subscribeToNoteUpdates: (noteId: string) => () => void;
 }
 
 export const usePraiseStore = create<PraiseState>()(
@@ -32,10 +33,31 @@ export const usePraiseStore = create<PraiseState>()(
         });
       },
 
+      subscribeToNoteUpdates: (noteId: string) => {
+        const channel = supabase
+          .channel(`praise:${noteId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'praises',
+              filter: `sermon_note_id=eq.${noteId}`
+            },
+            async () => {
+              await get().syncPraiseCount(noteId);
+            }
+          )
+          .subscribe();
+
+        return () => {
+          channel.unsubscribe();
+        };
+      },
+
       initializePraiseState: async (noteId: string) => {
         const state = get();
         
-        // Skip if already initialized and not forced
         if (state.initializedNotes.has(noteId)) {
           return;
         }
@@ -49,7 +71,6 @@ export const usePraiseStore = create<PraiseState>()(
             userId: user.id
           });
 
-          // Get both praise status and count in a single query using RPC
           const { data, error } = await supabase.rpc('get_praise_state', {
             p_note_id: noteId,
             p_user_id: user.id
@@ -81,6 +102,8 @@ export const usePraiseStore = create<PraiseState>()(
             };
           });
 
+          state.subscribeToNoteUpdates(noteId);
+
           logger.info('initializePraiseState', 'Successfully initialized praise state', {
             noteId,
             userId: user.id,
@@ -97,19 +120,38 @@ export const usePraiseStore = create<PraiseState>()(
 
       syncPraiseCount: async (noteId: string) => {
         try {
-          const { data, error } = await supabase.rpc('get_praise_count', {
-            p_note_id: noteId
+          const { data, error } = await supabase.rpc('get_praise_state', {
+            p_note_id: noteId,
+            p_user_id: (await supabase.auth.getUser()).data.user?.id
           });
 
           if (error) throw error;
 
+          const { has_praised, praise_count } = data;
+
           set(state => {
+            const newPraisedNotes = new Set(state.praisedNotes);
             const newPraiseCounts = new Map(state.praiseCounts);
-            newPraiseCounts.set(noteId, data.praise_count);
+
+            if (has_praised) {
+              newPraisedNotes.add(noteId);
+            } else {
+              newPraisedNotes.delete(noteId);
+            }
+
+            newPraiseCounts.set(noteId, praise_count);
+
             return {
               ...state,
+              praisedNotes: newPraisedNotes,
               praiseCounts: newPraiseCounts
             };
+          });
+
+          logger.info('syncPraiseCount', 'Successfully synced praise count', {
+            noteId,
+            count: praise_count,
+            hasPraised: has_praised
           });
         } catch (error) {
           logger.error('syncPraiseCount', 'Failed to sync praise count', error as Error, {
@@ -128,17 +170,13 @@ export const usePraiseStore = create<PraiseState>()(
 
         try {
           const { data: { user } } = await supabase.auth.getUser();
-          if (!user) {
-            toast.error('Please sign in to praise sermon notes');
-            return;
-          }
+          if (!user) return;
 
           set(state => ({
             ...state,
             pendingToggles: new Set(state.pendingToggles).add(noteId)
           }));
 
-          // Use a single RPC call to handle the toggle
           const { data, error } = await supabase.rpc('toggle_praise', {
             p_note_id: noteId,
             p_user_id: user.id
@@ -148,7 +186,6 @@ export const usePraiseStore = create<PraiseState>()(
 
           const { action, new_count } = data;
 
-          // Update state based on response
           set(state => {
             const newPraisedNotes = new Set(state.praisedNotes);
             const newPraiseCounts = new Map(state.praiseCounts);
@@ -179,8 +216,7 @@ export const usePraiseStore = create<PraiseState>()(
             noteId
           });
           
-          // Revert to server state
-          await get().initializePraiseState(noteId);
+          await get().syncPraiseCount(noteId);
           throw error;
         } finally {
           set(state => ({
