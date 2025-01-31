@@ -8,6 +8,7 @@ import { DefaultAvatar } from '../../components/profile/DefaultAvatar';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../utils/cn';
 import { usePraiseStore } from '../../stores/praiseStore';
+import { useCommentStore } from '../../stores/commentStore';
 import { CommentSection } from '../../components/comments/CommentSection';
 import { toast } from 'sonner';
 
@@ -36,12 +37,14 @@ const ViewSermonNote = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { togglePraise, syncPraiseCount } = usePraiseStore();
+  const { commentCounts, initializeCommentState } = useCommentStore();
 
   useEffect(() => {
     if (id) {
       loadSermonNote();
+      initializeCommentState(id);
     }
-  }, [id]);
+  }, [id, initializeCommentState]);
 
   useEffect(() => {
     if (note) {
@@ -135,9 +138,8 @@ const ViewSermonNote = () => {
     );
   }
 
-  // Ensure counts are valid numbers
-  const praiseCount = typeof note.praise_count === 'number' ? note.praise_count : 0;
-  const commentCount = typeof note.comment_count === 'number' ? note.comment_count : 0;
+  // Get comment count from store or fallback to initial value
+  const commentCount = commentCounts.get(note.id) ?? note.comment_count;
 
   // Render the content blocks
   const renderContent = (content: any) => {
@@ -258,7 +260,7 @@ const ViewSermonNote = () => {
                     note.user_has_praised && "fill-divine-yellow-500"
                   )}
                 />
-                <span>{praiseCount}</span>
+                <span>{note.praise_count}</span>
               </button>
 
               <a
@@ -282,10 +284,8 @@ const ViewSermonNote = () => {
           <CommentSection
             sermonNoteId={note.id}
             onCommentAdded={() => {
-              setNote(prev => prev ? {
-                ...prev,
-                comment_count: prev.comment_count + 1
-              } : null);
+              // Let the store handle the count update
+              initializeCommentState(note.id);
             }}
           />
         </div>

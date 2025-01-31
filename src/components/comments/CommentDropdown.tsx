@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
@@ -30,15 +30,45 @@ export function CommentDropdown({ sermonNoteId, isOpen, onCommentAdded }: Commen
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && dropdownRef.current) {
       loadComments();
-      subscribeToComments();
+      const unsubscribe = subscribeToComments();
+      return () => {
+        unsubscribe();
+      };
     }
   }, [isOpen, sermonNoteId]);
 
+  const subscribeToComments = () => {
+    const channel = supabase
+      .channel(`comments:${sermonNoteId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'comments',
+          filter: `sermon_note_id=eq.${sermonNoteId}`
+        },
+        () => {
+          if (dropdownRef.current) {
+            loadComments();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  };
+
   const loadComments = async () => {
+    if (!dropdownRef.current) return;
+
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -58,34 +88,17 @@ export function CommentDropdown({ sermonNoteId, isOpen, onCommentAdded }: Commen
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setComments(data || []);
+      
+      if (dropdownRef.current) {
+        setComments(data || []);
+      }
     } catch (error) {
       console.error('Error loading comments:', error);
     } finally {
-      setLoading(false);
+      if (dropdownRef.current) {
+        setLoading(false);
+      }
     }
-  };
-
-  const subscribeToComments = () => {
-    const channel = supabase
-      .channel(`comments:${sermonNoteId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'comments',
-          filter: `sermon_note_id=eq.${sermonNoteId}`
-        },
-        () => {
-          loadComments();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,11 +131,14 @@ export function CommentDropdown({ sermonNoteId, isOpen, onCommentAdded }: Commen
   if (!isOpen) return null;
 
   return (
-    <div className={cn(
-      "absolute top-full left-0 w-full md:w-96 bg-white rounded-lg shadow-lg border border-holy-blue-100 mt-2 z-10",
-      "transform origin-top transition-all duration-200 ease-out",
-      isOpen ? "opacity-100 scale-y-100" : "opacity-0 scale-y-0"
-    )}>
+    <div 
+      ref={dropdownRef}
+      className={cn(
+        "absolute top-full left-0 w-full md:w-96 bg-white rounded-lg shadow-lg border border-holy-blue-100 mt-2 z-10",
+        "transform origin-top transition-all duration-200 ease-out",
+        isOpen ? "opacity-100 scale-y-100" : "opacity-0 scale-y-0"
+      )}
+    >
       {/* Comment Input */}
       {user && (
         <form onSubmit={handleSubmit} className="p-4 border-b border-holy-blue-100">

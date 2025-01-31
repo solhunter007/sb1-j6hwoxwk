@@ -21,6 +21,13 @@ interface LogEntry {
 class Logger {
   private static instance: Logger;
   private readonly serviceName: string = 'sermon-buddy';
+  private readonly logLevels: Record<LogLevel, number> = {
+    ERROR: 0,
+    WARN: 1,
+    INFO: 2,
+    DEBUG: 3
+  };
+  private currentLogLevel: LogLevel = 'INFO';
 
   private constructor() {}
 
@@ -29,6 +36,14 @@ class Logger {
       Logger.instance = new Logger();
     }
     return Logger.instance;
+  }
+
+  setLogLevel(level: LogLevel) {
+    this.currentLogLevel = level;
+  }
+
+  private shouldLog(level: LogLevel): boolean {
+    return this.logLevels[level] <= this.logLevels[this.currentLogLevel];
   }
 
   private formatLogEntry(entry: LogEntry): string {
@@ -50,6 +65,8 @@ class Logger {
     Object.keys(masked).forEach(key => {
       if (sensitiveFields.some(field => key.toLowerCase().includes(field))) {
         masked[key] = '***REDACTED***';
+      } else if (typeof masked[key] === 'object' && masked[key] !== null) {
+        masked[key] = this.maskSensitiveData(masked[key]);
       }
     });
 
@@ -63,10 +80,14 @@ class Logger {
     error?: Error,
     context?: Record<string, any>
   ): LogEntry {
+    const timestamp = new Date().toISOString();
+    const requestId = crypto.randomUUID();
+
     return {
-      timestamp: new Date().toISOString(),
+      timestamp,
       level,
       service: this.serviceName,
+      requestId,
       method,
       message,
       ...(error && {
@@ -81,21 +102,25 @@ class Logger {
   }
 
   debug(method: string, message: string, context?: Record<string, any>) {
+    if (!this.shouldLog('DEBUG')) return;
     const entry = this.createLogEntry('DEBUG', method, message, undefined, context);
     console.debug(this.formatLogEntry(entry));
   }
 
   info(method: string, message: string, context?: Record<string, any>) {
+    if (!this.shouldLog('INFO')) return;
     const entry = this.createLogEntry('INFO', method, message, undefined, context);
     console.info(this.formatLogEntry(entry));
   }
 
   warn(method: string, message: string, context?: Record<string, any>) {
+    if (!this.shouldLog('WARN')) return;
     const entry = this.createLogEntry('WARN', method, message, undefined, context);
     console.warn(this.formatLogEntry(entry));
   }
 
   error(method: string, message: string, error: Error, context?: Record<string, any>) {
+    if (!this.shouldLog('ERROR')) return;
     const entry = this.createLogEntry('ERROR', method, message, error, context);
     console.error(this.formatLogEntry(entry));
   }

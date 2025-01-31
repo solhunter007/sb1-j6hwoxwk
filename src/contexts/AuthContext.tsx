@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface AuthContextType {
   user: User | null;
@@ -9,6 +10,7 @@ interface AuthContextType {
   signIn: (identifier: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, username: string, fullName: string, userType: string, profileImage?: string) => Promise<void>;
   signOut: () => Promise<void>;
+  userType: 'individual' | 'church' | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,6 +18,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userType, setUserType] = useState<'individual' | 'church' | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     let mounted = true;
@@ -24,6 +29,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (mounted) {
         setUser(session?.user ?? null);
+        if (session?.user) {
+          setUserType(session.user.user_metadata.user_type);
+          handleAuthRedirect(session.user.user_metadata.user_type);
+        }
         setLoading(false);
       }
     });
@@ -34,8 +43,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!session) {
           // Clear all local storage on logout
           localStorage.clear();
+          setUser(null);
+          setUserType(null);
+          navigate('/');
+        } else {
+          setUser(session.user);
+          setUserType(session.user.user_metadata.user_type);
+          handleAuthRedirect(session.user.user_metadata.user_type);
         }
-        setUser(session?.user ?? null);
         setLoading(false);
       }
     });
@@ -44,43 +59,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [navigate]);
 
-  const uploadProfileImage = async (userId: string, base64Image: string): Promise<string> => {
-    try {
-      // Remove the data:image/jpeg;base64, prefix
-      const base64Data = base64Image.split(',')[1];
-      const fileName = `${userId}/profile.jpg`;
-
-      // Convert base64 to Uint8Array
-      const binaryData = atob(base64Data);
-      const bytes = new Uint8Array(binaryData.length);
-      for (let i = 0; i < binaryData.length; i++) {
-        bytes[i] = binaryData.charCodeAt(i);
-      }
-
-      // Upload the image
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, bytes, {
-          contentType: 'image/jpeg',
-          upsert: true
-        });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      // Get the public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
-
-      return publicUrl;
-    } catch (error) {
-      console.error('Upload error:', error);
-      throw new Error('Failed to upload profile image');
+  const handleAuthRedirect = (type: string) => {
+    // Don't redirect if already on auth page or if explicitly navigating somewhere
+    if (location.pathname === '/auth' || location.state?.from) {
+      const destination = location.state?.from || getDefaultRoute(type);
+      navigate(destination, { replace: true });
+      return;
     }
+
+    // Don't redirect if already on a valid route for the user type
+    if (isValidRouteForUserType(location.pathname, type)) {
+      return;
+    }
+
+    // Redirect to default route
+    navigate(getDefaultRoute(type), { replace: true });
+  };
+
+  const getDefaultRoute = (type: string): string => {
+    switch (type) {
+      case 'church':
+        return '/church/dashboard';
+      case 'individual':
+        return '/feed';
+      default:
+        return '/';
+    }
+  };
+
+  const isValidRouteForUserType = (path: string, type: string): boolean => {
+    if (type === 'church') {
+      return path.startsWith('/church/') || path === '/feed' || path.startsWith('/sermon-notes/');
+    }
+    if (type === 'individual') {
+      return path === '/feed' || path.startsWith('/sermon-notes/') || path.startsWith('/profile/');
+    }
+    return false;
   };
 
   const signUp = async (
@@ -143,6 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       toast.success('Account created successfully!');
+      handleAuthRedirect(userType);
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message);
@@ -150,25 +167,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         toast.error('Failed to create account');
       }
       throw error;
-    }
-  };
-
-  const signOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      // Clear all local storage
-      localStorage.clear();
-      
-      // Use window.location.replace for a clean redirect
-      window.location.replace('/');
-    } catch (error) {
-      console.error('Error signing out:', error);
-      // Clear state even on error
-      setUser(null);
-      localStorage.clear();
-      window.location.replace('/');
     }
   };
 
@@ -219,8 +217,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      // Clear all local storage
+      localStorage.clear();
+      
+      // Navigate to home page
+      navigate('/', { replace: true });
+    } catch (error) {
+      console.error('Error signing out:', error);
+      // Clear state even on error
+      setUser(null);
+      setUserType(null);
+      localStorage.clear();
+      navigate('/', { replace: true });
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, userType }}>
       {children}
     </AuthContext.Provider>
   );

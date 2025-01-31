@@ -16,13 +16,14 @@ import ViewSermonNote from './pages/SermonNotes/ViewSermonNote';
 import Profile from './pages/Profile';
 import Church from './pages/Church';
 import Feed from './pages/Feed';
+import ChurchDashboard from './pages/ChurchDashboard';
 import { AuthProvider } from './contexts/AuthContext';
 import { RequireAuth } from './components/auth/RequireAuth';
 
 // Create router with v7 behavior
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route element={<Layout />}>
+    <Route element={<AuthProvider><Layout /></AuthProvider>}>
       <Route path="/" element={<Home />} />
       <Route path="auth" element={<Auth />} />
       <Route path="feed" element={<RequireAuth><Feed /></RequireAuth>} />
@@ -31,6 +32,7 @@ const router = createBrowserRouter(
       <Route path="sermon-notes/:id" element={<ViewSermonNote />} />
       <Route path="profile/:id" element={<Profile />} />
       <Route path="church/:id" element={<Church />} />
+      <Route path="church/dashboard" element={<RequireAuth><ChurchDashboard /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Route>
   ),
@@ -44,10 +46,10 @@ const router = createBrowserRouter(
 
 function App() {
   return (
-    <AuthProvider>
+    <>
       <RouterProvider router={router} />
       <Toaster position="top-right" />
-    </AuthProvider>
+    </>
   );
 }
 

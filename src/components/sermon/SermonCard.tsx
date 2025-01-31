@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { MessageCircle, Share2, HelpingHand } from 'lucide-react';
+import { MessageCircle, HelpingHand } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { DefaultAvatar } from '../profile/DefaultAvatar';
 import { cn } from '../../utils/cn';
 import { usePraiseStore } from '../../stores/praiseStore';
+import { useCommentStore } from '../../stores/commentStore';
 import { useAuth } from '../../contexts/AuthContext';
-import { CommentSection } from '../comments/CommentSection';
+import { toast } from 'sonner';
+import { ShareButton } from '../share/ShareButton';
 
 interface SermonNote {
   id: string;
@@ -27,31 +29,43 @@ interface SermonNote {
 
 interface SermonCardProps {
   note: SermonNote;
-  showComments?: boolean;
 }
 
-export function SermonCard({ note, showComments = false }: SermonCardProps) {
+export function SermonCard({ note }: SermonCardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isLoading, setIsLoading] = React.useState(false);
   const { togglePraise, initializePraiseState, praisedNotes, praiseCounts } = usePraiseStore();
+  const { commentCounts, initializeCommentState, subscribeToCommentUpdates } = useCommentStore();
 
   // Use store values with fallback to prop values
   const hasPraised = praisedNotes.has(note.id);
   const praiseCount = praiseCounts.get(note.id) ?? note.praise_count;
+  const commentCount = commentCounts.get(note.id) ?? note.comment_count;
 
-  // Initialize praise state once on mount
-  React.useEffect(() => {
-    if (user && note.id) {
-      initializePraiseState(note.id).catch(console.error);
+  // Initialize praise and comment state once on mount
+  useEffect(() => {
+    if (note.id) {
+      // Initialize states
+      initializePraiseState(note.id);
+      initializeCommentState(note.id);
+
+      // Subscribe to comment updates
+      const unsubscribe = subscribeToCommentUpdates(note.id);
+
+      // Cleanup subscription on unmount
+      return () => {
+        unsubscribe();
+      };
     }
-  }, [note.id, user, initializePraiseState]);
+  }, [note.id, initializePraiseState, initializeCommentState, subscribeToCommentUpdates]);
 
   const handlePraise = async (e: React.MouseEvent) => {
     e.preventDefault();
 
     if (!user) {
+      toast.error('Please sign in to praise sermon notes');
       navigate('/auth', { 
         state: { from: location },
         replace: true 
@@ -64,8 +78,13 @@ export function SermonCard({ note, showComments = false }: SermonCardProps) {
     try {
       setIsLoading(true);
       await togglePraise(note.id);
+      toast.success(
+        hasPraised ? 'Praise removed' : 'Sermon note praised!',
+        { duration: 2000 }
+      );
     } catch (error) {
       console.error('Error toggling praise:', error);
+      toast.error('Failed to update praise. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -152,31 +171,20 @@ export function SermonCard({ note, showComments = false }: SermonCardProps) {
           </button>
 
           <Link
-            to={`/sermon-notes/${note.id}#comments`}
+            to={`/sermon-notes/${note.id}`}
             className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600"
           >
             <MessageCircle className="h-5 w-5" />
-            <span>{note.comment_count}</span>
+            <span>{commentCount}</span>
           </Link>
 
-          <button className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600 ml-auto">
-            <Share2 className="h-5 w-5" />
-            Share
-          </button>
-        </div>
-      </div>
-
-      {/* Comments Section */}
-      {showComments && (
-        <div className="border-t border-holy-blue-100 p-6">
-          <CommentSection
-            sermonNoteId={note.id}
-            onCommentAdded={() => {
-              note.comment_count += 1;
-            }}
+          <ShareButton
+            noteId={note.id}
+            noteTitle={note.title}
+            className="ml-auto"
           />
         </div>
-      )}
+      </div>
     </article>
   );
 }

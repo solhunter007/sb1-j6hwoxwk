@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import { Point, Area } from 'react-easy-crop/types';
-import { MoveIcon, ZoomIn, ZoomOut } from 'lucide-react';
+import { MoveIcon, ZoomIn, ZoomOut, AlertCircle } from 'lucide-react';
 
 interface ImageCropperProps {
   image: string;
@@ -10,21 +10,28 @@ interface ImageCropperProps {
   minHeight?: number;
   onCropComplete: (croppedImage: string) => void;
   onCancel: () => void;
+  cropShape?: 'rect' | 'round';
+  outputWidth?: number;
+  outputHeight?: number;
 }
 
 export default function ImageCropper({ 
   image, 
-  aspect, 
+  aspect,
   minWidth = 200, 
-  minHeight = 200, 
-  onCropComplete, 
-  onCancel 
+  minHeight = 200,
+  onCropComplete,
+  onCancel,
+  cropShape = 'rect',
+  outputWidth = 400,
+  outputHeight = 400
 }: ImageCropperProps) {
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
 
   const onCropChange = (location: Point) => {
     setCrop(location);
@@ -37,6 +44,18 @@ export default function ImageCropper({
   const onCropAreaChange = useCallback((_: Area, croppedAreaPixels: Area) => {
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);
+
+  const onMediaLoaded = useCallback((mediaSize: { width: number; height: number }) => {
+    setImageDimensions(mediaSize);
+    setIsImageLoaded(true);
+
+    // Check if image meets minimum dimensions
+    if (mediaSize.width < minWidth || mediaSize.height < minHeight) {
+      setError(`Image must be at least ${minWidth}x${minHeight} pixels`);
+    } else {
+      setError(null);
+    }
+  }, [minWidth, minHeight]);
 
   const createImage = (url: string): Promise<HTMLImageElement> =>
     new Promise((resolve, reject) => {
@@ -59,8 +78,8 @@ export default function ImageCropper({
     }
 
     // Set canvas size to desired output size
-    canvas.width = 400;
-    canvas.height = 400;
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
 
     // Draw the cropped image
     ctx.drawImage(
@@ -71,8 +90,8 @@ export default function ImageCropper({
       pixelCrop.height,
       0,
       0,
-      400,
-      400
+      outputWidth,
+      outputHeight
     );
 
     return new Promise((resolve, reject) => {
@@ -98,11 +117,15 @@ export default function ImageCropper({
 
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg w-full max-w-2xl overflow-hidden">
+      <div className="bg-white rounded-lg w-full max-w-4xl overflow-hidden">
         <div className="p-4 border-b border-holy-blue-100">
-          <h3 className="text-lg font-semibold text-holy-blue-900">Crop Your Photo</h3>
+          <h3 className="text-lg font-semibold text-holy-blue-900">
+            {cropShape === 'round' ? 'Crop Your Photo' : 'Adjust Header Image'}
+          </h3>
           <p className="text-sm text-holy-blue-600 mt-1">
-            Center your face within the square for best results
+            {cropShape === 'round'
+              ? 'Center your face within the circle for best results'
+              : 'Adjust the image position and zoom to create your header'}
           </p>
         </div>
 
@@ -120,10 +143,10 @@ export default function ImageCropper({
             onCropChange={onCropChange}
             onZoomChange={onZoomChange}
             onCropComplete={onCropAreaChange}
-            onMediaLoaded={() => setIsImageLoaded(true)}
+            onMediaLoaded={onMediaLoaded}
             minZoom={0.5}
             maxZoom={3}
-            cropShape="round"
+            cropShape={cropShape}
             showGrid={false}
             style={{
               containerStyle: {
@@ -152,7 +175,10 @@ export default function ImageCropper({
 
         {error && (
           <div className="p-4 bg-red-50 border-y border-red-100">
-            <p className="text-sm text-red-600">{error}</p>
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
           </div>
         )}
 
@@ -172,6 +198,12 @@ export default function ImageCropper({
             <ZoomIn className="h-4 w-4 text-holy-blue-600" />
           </div>
 
+          {imageDimensions && (
+            <p className="text-sm text-holy-blue-600">
+              Original image: {imageDimensions.width}x{imageDimensions.height}px
+            </p>
+          )}
+
           <div className="flex justify-end gap-3">
             <button
               onClick={onCancel}
@@ -182,7 +214,7 @@ export default function ImageCropper({
             <button
               onClick={handleCrop}
               className="btn-primary"
-              disabled={!isImageLoaded || !croppedAreaPixels}
+              disabled={!isImageLoaded || !croppedAreaPixels || !!error}
             >
               Apply
             </button>
