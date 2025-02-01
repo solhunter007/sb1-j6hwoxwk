@@ -95,8 +95,15 @@ export function SermonCard({ note }: SermonCardProps) {
     try {
       if (!content || !content.content) return '';
       
-      return content.content
+      // Filter out pastor and church info from preview
+      const contentBlocks = content.content
         .filter((block: any) => block.type === 'paragraph')
+        .filter((block: any) => {
+          const text = block.content?.[0]?.text || '';
+          return !text.startsWith('Pastor:') && !text.startsWith('Church:');
+        });
+
+      return contentBlocks
         .map((block: any) => block.content?.[0]?.text || '')
         .join(' ')
         .slice(0, 200) + '...';
@@ -105,6 +112,36 @@ export function SermonCard({ note }: SermonCardProps) {
       return '';
     }
   };
+
+  // Extract pastor and church info
+  const getSermonInfo = (content: any): { pastor: string; church: string } => {
+    try {
+      if (!content || !content.content) return { pastor: '', church: '' };
+
+      const info = {
+        pastor: '',
+        church: ''
+      };
+
+      content.content.forEach((block: any) => {
+        if (block.type === 'paragraph') {
+          const text = block.content?.[0]?.text || '';
+          if (text.startsWith('Pastor:')) {
+            info.pastor = text.replace('Pastor:', '').trim();
+          } else if (text.startsWith('Church:')) {
+            info.church = text.replace('Church:', '').trim();
+          }
+        }
+      });
+
+      return info;
+    } catch (e) {
+      console.error('Error extracting sermon info:', e);
+      return { pastor: '', church: '' };
+    }
+  };
+
+  const sermonInfo = getSermonInfo(note.content);
 
   return (
     <article className="bg-white rounded-lg shadow-sm border border-holy-blue-100 overflow-hidden hover:shadow-md transition-shadow">
@@ -140,6 +177,17 @@ export function SermonCard({ note }: SermonCardProps) {
           <h2 className="text-xl font-semibold text-holy-blue-900 group-hover:text-holy-blue-600 transition-colors mb-2">
             {note.title}
           </h2>
+          {/* Sermon Info */}
+          {(sermonInfo.pastor || sermonInfo.church) && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-holy-blue-600 mb-3">
+              {sermonInfo.pastor && (
+                <span>{sermonInfo.pastor}</span>
+              )}
+              {sermonInfo.church && (
+                <span>{sermonInfo.church}</span>
+              )}
+            </div>
+          )}
           <p className="text-holy-blue-700 line-clamp-3">
             {getTextContent(note.content)}
           </p>

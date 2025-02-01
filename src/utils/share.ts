@@ -53,42 +53,45 @@ class ShareService {
     shareData: ReturnType<typeof this.buildShareData> extends Promise<infer T> ? T : never
   ): Promise<boolean> {
     const { url, title, text, metadata } = await shareData;
+    const encodedUrl = encodeURIComponent(url);
+    const encodedTitle = encodeURIComponent(title);
+    const encodedText = encodeURIComponent(text || title);
+
+    let shareUrl: string;
+    let windowFeatures = 'width=550,height=400,resizable=yes,scrollbars=yes';
 
     switch (platform.toLowerCase()) {
       case 'facebook':
-        window.open(
-          `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
-          'facebook-share',
-          'width=580,height=296'
-        );
+        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
         break;
 
       case 'twitter':
-        window.open(
-          `https://twitter.com/intent/tweet?text=${encodeURIComponent(
-            `${text || title}\n\n${url}`
-          )}`,
-          'twitter-share',
-          'width=550,height=235'
-        );
+        shareUrl = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
         break;
 
       case 'linkedin':
-        window.open(
-          `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
-          'linkedin-share',
-          'width=580,height=296'
-        );
+        shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`;
         break;
 
       case 'email':
-        window.location.href = `mailto:?subject=${encodeURIComponent(
-          title
-        )}&body=${encodeURIComponent(`${text || ''}\n\n${url}`)}`;
-        break;
+        shareUrl = `mailto:?subject=${encodedTitle}&body=${encodedText}%0A%0A${encodedUrl}`;
+        window.location.href = shareUrl;
+        return true;
 
       default:
         throw new Error(`Unsupported platform: ${platform}`);
+    }
+
+    // Center the popup window
+    const left = Math.max(0, (window.innerWidth - 550) / 2);
+    const top = Math.max(0, (window.innerHeight - 400) / 2);
+    windowFeatures += `,left=${left},top=${top}`;
+
+    const popup = window.open(shareUrl, `share_${platform}`, windowFeatures);
+    
+    // Check if popup was blocked
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      throw new Error('Popup blocked. Please allow popups and try again.');
     }
 
     return true;
@@ -101,7 +104,8 @@ class ShareService {
   width="${options.width}" 
   height="${options.height}" 
   frameborder="0" 
-  allowfullscreen>
+  allowfullscreen
+  title="Sermon Note Embed">
 </iframe>`;
   }
 }

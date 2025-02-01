@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -8,6 +8,9 @@ import { Edit2, Calendar, ArrowLeft } from 'lucide-react';
 import { DefaultAvatar } from '../components/profile/DefaultAvatar';
 import { AccountSettings } from '../components/profile/AccountSettings';
 import { usePraiseStore } from '../stores/praiseStore';
+import { FollowButton } from '../components/profile/FollowButton';
+import { FollowStats } from '../components/profile/FollowStats';
+import { ChurchMembership } from '../components/profile/ChurchMembership';
 
 interface Profile {
   id: string;
@@ -17,6 +20,15 @@ interface Profile {
   header_url: string | null;
   bio: string;
   created_at: string;
+  follower_count: number;
+  following_count: number;
+  is_following: boolean;
+  church_membership?: {
+    churchId: string;
+    churchName: string;
+    location: string;
+    status: 'pending' | 'active' | 'rejected';
+  };
   sermon_notes: Array<{
     id: string;
     title: string;
@@ -37,64 +49,86 @@ export default function Profile() {
   const { initializePraiseState } = usePraiseStore();
 
   useEffect(() => {
-    async function loadProfile() {
-      try {
-        if (!id) {
-          setError('Profile ID is required');
-          setLoading(false);
-          return;
-        }
-
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select(`
-            id,
-            username,
-            full_name,
-            avatar_url,
-            header_url,
-            bio,
-            created_at,
-            sermon_notes (
-              id,
-              title,
-              created_at,
-              visibility
-            )
-          `)
-          .eq('id', id)
-          .maybeSingle();
-
-        if (profileError) {
-          throw profileError;
-        }
-
-        if (!profileData) {
-          setError('Profile not found');
-          setLoading(false);
-          return;
-        }
-
-        setProfile(profileData);
-
-        // Initialize praise state for all sermon notes
-        if (profileData.sermon_notes) {
-          await Promise.all(
-            profileData.sermon_notes.map(note => initializePraiseState(note.id))
-          );
-        }
-
-        setError(null);
-      } catch (err) {
-        console.error('Error loading profile:', err);
-        setError('Failed to load profile');
-      } finally {
-        setLoading(false);
-      }
+    if (id) {
+      loadProfile();
     }
+  }, [id]);
 
-    loadProfile();
-  }, [id, initializePraiseState]);
+  const loadProfile = async () => {
+    try {
+      if (!id) {
+        setError('Profile ID is required');
+        setLoading(false);
+        return;
+      }
+
+      // Get profile data
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          username,
+          full_name,
+          avatar_url,
+          header_url,
+          bio,
+          created_at,
+          follower_count,
+          following_count,
+          sermon_notes (
+            id,
+            title,
+            created_at,
+            visibility
+          )
+        `)
+        .eq('id', id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      // Get follow status if logged in
+      let isFollowing = false;
+      if (user) {
+        const { data: followData } = await supabase.rpc('get_follow_counts', {
+          p_user_id: id
+        });
+        isFollowing = followData?.is_following || false;
+      }
+
+      // Get church membership using the new function
+      const { data: membershipData } = await supabase.rpc('get_church_membership', {
+        p_user_id: id
+      });
+
+      const churchMembership = membershipData ? {
+        churchId: membershipData.church_id,
+        churchName: membershipData.church_name,
+        location: membershipData.location,
+        status: membershipData.status
+      } : undefined;
+
+      setProfile({
+        ...profileData,
+        is_following: isFollowing,
+        church_membership: churchMembership
+      });
+
+      // Initialize praise state for sermon notes
+      if (profileData.sermon_notes) {
+        await Promise.all(
+          profileData.sermon_notes.map(note => initializePraiseState(note.id))
+        );
+      }
+
+      setError(null);
+    } catch (err) {
+      console.error('Error loading profile:', err);
+      setError('Failed to load profile');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) return <LoadingState />;
 
@@ -169,8 +203,15 @@ export default function Profile() {
           </div>
 
           {/* Profile Actions */}
-          {isOwnProfile && (
-            <div className="absolute top-4 right-6">
+          <div className="absolute top-4 right-6 flex items-center gap-3">
+            {!isOwnProfile && (
+              <FollowButton
+                userId={profile.id}
+                isFollowing={profile.is_following}
+                onFollowChange={loadProfile}
+              />
+            )}
+            {isOwnProfile && (
               <button 
                 onClick={() => setShowSettings(true)}
                 className="btn-secondary"
@@ -178,8 +219,8 @@ export default function Profile() {
                 <Edit2 className="h-4 w-4 mr-2" />
                 Edit Profile
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Profile Info */}
           <div className="pt-20">
@@ -194,12 +235,26 @@ export default function Profile() {
               <p className="mt-4 text-holy-blue-800">{profile.bio}</p>
             )}
 
-            <div className="mt-4 flex items-center space-x-4 text-sm text-holy-blue-600">
-              <div className="flex items-center">
+            <div className="mt-4 flex items-center justify-between">
+              <FollowStats
+                userId={profile.id}
+                followerCount={profile.follower_count}
+                followingCount={profile.following_count}
+              />
+              <div className="flex items-center text-sm text-holy-blue-600">
                 <Calendar className="h-4 w-4 mr-1" />
                 Joined {format(new Date(profile.created_at), 'MMMM yyyy')}
               </div>
             </div>
+          </div>
+
+          {/* Church Membership */}
+          <div className="mt-8">
+            <ChurchMembership
+              userId={profile.id}
+              membership={profile.church_membership}
+              onMembershipChange={loadProfile}
+            />
           </div>
 
           {/* Sermon Notes */}

@@ -20,7 +20,6 @@ import ChurchDashboard from './pages/ChurchDashboard';
 import { AuthProvider } from './contexts/AuthContext';
 import { RequireAuth } from './components/auth/RequireAuth';
 
-// Create router with v7 behavior
 const router = createBrowserRouter(
   createRoutesFromElements(
     <Route element={<AuthProvider><Layout /></AuthProvider>}>
@@ -48,7 +47,17 @@ function App() {
   return (
     <>
       <RouterProvider router={router} />
-      <Toaster position="top-right" />
+      <Toaster
+        position="top-right"
+        duration={0}
+        closeButton={false}
+        richColors
+        expand={false}
+        visibleToasts={0}
+        toastOptions={{
+          style: { display: 'none' }
+        }}
+      />
     </>
   );
 }

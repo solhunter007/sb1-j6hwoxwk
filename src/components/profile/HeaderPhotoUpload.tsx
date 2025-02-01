@@ -26,9 +26,6 @@ export function HeaderPhotoUpload({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Reset error state
-    setError(null);
-
     // Validate file size (10MB limit)
     if (file.size > 10 * 1024 * 1024) {
       setError('Image size must be less than 10MB');
@@ -49,25 +46,15 @@ export function HeaderPhotoUpload({
       // Create image object to check dimensions
       const img = new Image();
       img.onload = () => {
-        // Check if image meets minimum dimensions
-        if (img.width < 1500 || img.height < 500) {
-          setError(`Image dimensions must be at least 1500x500 pixels. Your image is ${img.width}x${img.height} pixels.`);
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
-          return;
-        }
-
-        // Clear any previous errors and proceed with cropping
+        // Clear any previous errors
         setError(null);
+        
+        // Start cropping process
         setCropImage(dataUrl);
       };
 
       img.onerror = () => {
         setError('Failed to load image. Please try another file.');
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
       };
 
       img.src = dataUrl;
@@ -75,9 +62,6 @@ export function HeaderPhotoUpload({
 
     reader.onerror = () => {
       setError('Failed to read image file. Please try again.');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     };
 
     reader.readAsDataURL(file);
@@ -94,9 +78,6 @@ export function HeaderPhotoUpload({
       toast.error('Failed to process image');
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
   };
 
@@ -142,16 +123,13 @@ export function HeaderPhotoUpload({
       />
 
       {error && (
-        <div className="flex items-start gap-2 text-red-600 bg-red-50 p-4 rounded-lg">
+        <div className="flex items-start gap-2 text-red-600 bg-red-50 p-3 rounded-lg">
           <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium">{error}</p>
-            <p className="text-sm mt-1">Please select an image that meets the minimum requirements.</p>
-          </div>
+          <p className="text-sm">{error}</p>
         </div>
       )}
 
-      <div className="text-center space-y-2">
+      <div className="text-center">
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
@@ -168,8 +146,8 @@ export function HeaderPhotoUpload({
           )}
         </button>
 
-        <p className="text-xs text-holy-blue-600/70">
-          Required: 1500x500 pixels minimum
+        <p className="text-xs text-holy-blue-600/70 mt-2">
+          Recommended: 1200x400 pixels
           <br />
           Accepted formats: JPG, PNG, or GIF • Max 10MB
         </p>
@@ -179,17 +157,10 @@ export function HeaderPhotoUpload({
         <ImageCropper
           image={cropImage}
           aspect={3}
-          minWidth={1500}
-          minHeight={500}
-          outputWidth={1500}
-          outputHeight={500}
+          minWidth={1200}
+          minHeight={400}
           onCropComplete={handleCropComplete}
-          onCancel={() => {
-            setCropImage(null);
-            if (fileInputRef.current) {
-              fileInputRef.current.value = '';
-            }
-          }}
+          onCancel={() => setCropImage(null)}
         />
       )}
     </div>

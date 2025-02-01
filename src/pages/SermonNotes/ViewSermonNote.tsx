@@ -11,6 +11,7 @@ import { usePraiseStore } from '../../stores/praiseStore';
 import { useCommentStore } from '../../stores/commentStore';
 import { CommentSection } from '../../components/comments/CommentSection';
 import { toast } from 'sonner';
+import { ShareButton } from '../../components/share/ShareButton';
 
 interface SermonNote {
   id: string;
@@ -29,7 +30,7 @@ interface SermonNote {
   scripture_references: string[];
 }
 
-const ViewSermonNote = () => {
+export default function ViewSermonNote() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -271,10 +272,12 @@ const ViewSermonNote = () => {
                 <span>{commentCount}</span>
               </a>
 
-              <button className="flex items-center gap-2 text-sm text-holy-blue-500 hover:text-holy-blue-600 ml-auto">
-                <Share2 className="h-5 w-5" />
-                Share
-              </button>
+              <ShareButton
+                noteId={note.id}
+                noteTitle={note.title}
+                description={`Check out this sermon note by ${note.author.full_name}`}
+                className="ml-auto"
+              />
             </div>
           </div>
         </div>
@@ -292,6 +295,4 @@ const ViewSermonNote = () => {
       </article>
     </div>
   );
-};
-
-export default ViewSermonNote;
+}

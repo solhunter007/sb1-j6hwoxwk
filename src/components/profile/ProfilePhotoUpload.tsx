@@ -81,11 +81,7 @@ export function ProfilePhotoUpload({
     try {
       setIsUploading(true);
       setCropImage(null);
-
-      // For registration, we'll store the cropped image data temporarily
-      // It will be uploaded to storage after the user account is created
       onPhotoChange(croppedImage);
-      
     } catch (error) {
       console.error('Error processing image:', error);
       setError('Failed to process image. Please try again.');

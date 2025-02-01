@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import { Point, Area } from 'react-easy-crop/types';
-import { MoveIcon, ZoomIn, ZoomOut, AlertCircle } from 'lucide-react';
+import { MoveIcon, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface ImageCropperProps {
   image: string;
@@ -10,28 +10,21 @@ interface ImageCropperProps {
   minHeight?: number;
   onCropComplete: (croppedImage: string) => void;
   onCancel: () => void;
-  cropShape?: 'rect' | 'round';
-  outputWidth?: number;
-  outputHeight?: number;
 }
 
 export default function ImageCropper({ 
   image, 
-  aspect,
+  aspect, 
   minWidth = 200, 
-  minHeight = 200,
-  onCropComplete,
-  onCancel,
-  cropShape = 'rect',
-  outputWidth = 400,
-  outputHeight = 400
+  minHeight = 200, 
+  onCropComplete, 
+  onCancel 
 }: ImageCropperProps) {
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
 
   const onCropChange = (location: Point) => {
     setCrop(location);
@@ -44,18 +37,6 @@ export default function ImageCropper({
   const onCropAreaChange = useCallback((_: Area, croppedAreaPixels: Area) => {
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);
-
-  const onMediaLoaded = useCallback((mediaSize: { width: number; height: number }) => {
-    setImageDimensions(mediaSize);
-    setIsImageLoaded(true);
-
-    // Check if image meets minimum dimensions
-    if (mediaSize.width < minWidth || mediaSize.height < minHeight) {
-      setError(`Image must be at least ${minWidth}x${minHeight} pixels`);
-    } else {
-      setError(null);
-    }
-  }, [minWidth, minHeight]);
 
   const createImage = (url: string): Promise<HTMLImageElement> =>
     new Promise((resolve, reject) => {
@@ -78,8 +59,8 @@ export default function ImageCropper({
     }
 
     // Set canvas size to desired output size
-    canvas.width = outputWidth;
-    canvas.height = outputHeight;
+    canvas.width = aspect === 1 ? 400 : 1200;
+    canvas.height = aspect === 1 ? 400 : 400;
 
     // Draw the cropped image
     ctx.drawImage(
@@ -90,8 +71,8 @@ export default function ImageCropper({
       pixelCrop.height,
       0,
       0,
-      outputWidth,
-      outputHeight
+      canvas.width,
+      canvas.height
     );
 
     return new Promise((resolve, reject) => {
@@ -115,17 +96,19 @@ export default function ImageCropper({
     }
   };
 
+  const isProfileImage = aspect === 1;
+
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg w-full max-w-4xl overflow-hidden">
+      <div className="bg-white rounded-lg w-full max-w-2xl overflow-hidden">
         <div className="p-4 border-b border-holy-blue-100">
           <h3 className="text-lg font-semibold text-holy-blue-900">
-            {cropShape === 'round' ? 'Crop Your Photo' : 'Adjust Header Image'}
+            {isProfileImage ? 'Crop Your Profile Photo' : 'Crop Your Header Image'}
           </h3>
           <p className="text-sm text-holy-blue-600 mt-1">
-            {cropShape === 'round'
-              ? 'Center your face within the circle for best results'
-              : 'Adjust the image position and zoom to create your header'}
+            {isProfileImage 
+              ? 'Center your face within the square for best results'
+              : 'Adjust the image to fit the header area (1200x400)'}
           </p>
         </div>
 
@@ -143,11 +126,11 @@ export default function ImageCropper({
             onCropChange={onCropChange}
             onZoomChange={onZoomChange}
             onCropComplete={onCropAreaChange}
-            onMediaLoaded={onMediaLoaded}
+            onMediaLoaded={() => setIsImageLoaded(true)}
             minZoom={0.5}
             maxZoom={3}
-            cropShape={cropShape}
-            showGrid={false}
+            cropShape={isProfileImage ? 'round' : 'rect'}
+            showGrid={!isProfileImage}
             style={{
               containerStyle: {
                 width: '100%',
@@ -175,10 +158,7 @@ export default function ImageCropper({
 
         {error && (
           <div className="p-4 bg-red-50 border-y border-red-100">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
+            <p className="text-sm text-red-600">{error}</p>
           </div>
         )}
 
@@ -198,12 +178,6 @@ export default function ImageCropper({
             <ZoomIn className="h-4 w-4 text-holy-blue-600" />
           </div>
 
-          {imageDimensions && (
-            <p className="text-sm text-holy-blue-600">
-              Original image: {imageDimensions.width}x{imageDimensions.height}px
-            </p>
-          )}
-
           <div className="flex justify-end gap-3">
             <button
               onClick={onCancel}
@@ -214,7 +188,7 @@ export default function ImageCropper({
             <button
               onClick={handleCrop}
               className="btn-primary"
-              disabled={!isImageLoaded || !croppedAreaPixels || !!error}
+              disabled={!isImageLoaded || !croppedAreaPixels}
             >
               Apply
             </button>
