@@ -4,7 +4,7 @@ import { Scroll, Home, User, Church, Bell, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Layout() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, userType } = useAuth();
   const location = useLocation();
 
   const handleSignOut = async () => {
@@ -54,17 +54,31 @@ export default function Layout() {
                   <Scroll className="h-4 w-4 mr-1" />
                   Sermon Notes
                 </Link>
-                <Link 
-                  to="/churches" 
-                  className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors ${
-                    location.pathname.includes('/church') 
-                      ? 'text-holy-blue-900' 
-                      : 'text-holy-blue-600/70 hover:text-holy-blue-600'
-                  }`}
-                >
-                  <Church className="h-4 w-4 mr-1" />
-                  Churches
-                </Link>
+                {userType === 'church' ? (
+                  <Link 
+                    to="/church/dashboard" 
+                    className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors ${
+                      location.pathname.includes('/church/dashboard') 
+                        ? 'text-holy-blue-900' 
+                        : 'text-holy-blue-600/70 hover:text-holy-blue-600'
+                    }`}
+                  >
+                    <Church className="h-4 w-4 mr-1" />
+                    Church Dashboard
+                  </Link>
+                ) : (
+                  <Link 
+                    to="/churches" 
+                    className={`inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors ${
+                      location.pathname.includes('/church') 
+                        ? 'text-holy-blue-900' 
+                        : 'text-holy-blue-600/70 hover:text-holy-blue-600'
+                    }`}
+                  >
+                    <Church className="h-4 w-4 mr-1" />
+                    Churches
+                  </Link>
+                )}
               </div>
             </div>
 

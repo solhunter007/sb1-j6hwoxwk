@@ -4,13 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { LoadingState } from '../components/ui/LoadingState';
 import { format } from 'date-fns';
-import { Edit2, Calendar, ArrowLeft } from 'lucide-react';
+import { Edit2, Calendar, ArrowLeft, Users } from 'lucide-react';
 import { DefaultAvatar } from '../components/profile/DefaultAvatar';
 import { AccountSettings } from '../components/profile/AccountSettings';
 import { usePraiseStore } from '../stores/praiseStore';
-import { FollowButton } from '../components/profile/FollowButton';
-import { FollowStats } from '../components/profile/FollowStats';
-import { ChurchMembership } from '../components/profile/ChurchMembership';
+import { toast } from 'sonner';
 
 interface Profile {
   id: string;
@@ -20,21 +18,22 @@ interface Profile {
   header_url: string | null;
   bio: string;
   created_at: string;
-  follower_count: number;
-  following_count: number;
-  is_following: boolean;
-  church_membership?: {
-    churchId: string;
-    churchName: string;
-    location: string;
-    status: 'pending' | 'active' | 'rejected';
-  };
+  is_church_admin: boolean;
   sermon_notes: Array<{
     id: string;
     title: string;
     created_at: string;
     visibility: string;
   }>;
+  member_stats?: {
+    total: number;
+    active: number;
+    pending: number;
+  };
+  church?: {
+    id: string;
+    name: string;
+  };
 }
 
 export default function Profile() {
@@ -62,7 +61,21 @@ export default function Profile() {
         return;
       }
 
-      // Get profile data
+      // First check if profile exists
+      const { count, error: checkError } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('id', id);
+
+      if (checkError) throw checkError;
+
+      if (count === 0) {
+        setError('Profile not found');
+        setLoading(false);
+        return;
+      }
+
+      // Get base profile data
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select(`
@@ -73,13 +86,16 @@ export default function Profile() {
           header_url,
           bio,
           created_at,
-          follower_count,
-          following_count,
+          is_church_admin,
           sermon_notes (
             id,
             title,
             created_at,
             visibility
+          ),
+          churches (
+            id,
+            name
           )
         `)
         .eq('id', id)
@@ -87,37 +103,36 @@ export default function Profile() {
 
       if (profileError) throw profileError;
 
-      // Get follow status if logged in
-      let isFollowing = false;
-      if (user) {
-        const { data: followData } = await supabase.rpc('get_follow_counts', {
-          p_user_id: id
-        });
-        isFollowing = followData?.is_following || false;
+      // If church admin, get member stats
+      let memberStats;
+      if (profileData.is_church_admin) {
+        const { data: statsData, error: statsError } = await supabase
+          .from('church_memberships')
+          .select('status')
+          .eq('church_id', profileData.churches?.id);
+
+        if (statsError) throw statsError;
+
+        memberStats = {
+          total: statsData.length,
+          active: statsData.filter(m => m.status === 'active').length,
+          pending: statsData.filter(m => m.status === 'pending').length
+        };
       }
 
-      // Get church membership using the new function
-      const { data: membershipData } = await supabase.rpc('get_church_membership', {
-        p_user_id: id
-      });
-
-      const churchMembership = membershipData ? {
-        churchId: membershipData.church_id,
-        churchName: membershipData.church_name,
-        location: membershipData.location,
-        status: membershipData.status
-      } : undefined;
-
-      setProfile({
+      // Combine data
+      const fullProfile = {
         ...profileData,
-        is_following: isFollowing,
-        church_membership: churchMembership
-      });
+        member_stats: memberStats,
+        church: profileData.churches
+      };
 
-      // Initialize praise state for sermon notes
-      if (profileData.sermon_notes) {
+      setProfile(fullProfile);
+
+      // Initialize praise state for all sermon notes
+      if (fullProfile.sermon_notes) {
         await Promise.all(
-          profileData.sermon_notes.map(note => initializePraiseState(note.id))
+          fullProfile.sermon_notes.map(note => initializePraiseState(note.id))
         );
       }
 
@@ -125,6 +140,7 @@ export default function Profile() {
     } catch (err) {
       console.error('Error loading profile:', err);
       setError('Failed to load profile');
+      toast.error('Failed to load profile');
     } finally {
       setLoading(false);
     }
@@ -204,13 +220,6 @@ export default function Profile() {
 
           {/* Profile Actions */}
           <div className="absolute top-4 right-6 flex items-center gap-3">
-            {!isOwnProfile && (
-              <FollowButton
-                userId={profile.id}
-                isFollowing={profile.is_following}
-                onFollowChange={loadProfile}
-              />
-            )}
             {isOwnProfile && (
               <button 
                 onClick={() => setShowSettings(true)}
@@ -236,25 +245,27 @@ export default function Profile() {
             )}
 
             <div className="mt-4 flex items-center justify-between">
-              <FollowStats
-                userId={profile.id}
-                followerCount={profile.follower_count}
-                followingCount={profile.following_count}
-              />
+              {/* Member Stats for Church Profiles */}
+              {profile.is_church_admin && profile.member_stats && (
+                <div className="flex items-center gap-6 text-sm text-holy-blue-600">
+                  <div className="flex items-center gap-1">
+                    <Users className="h-4 w-4" />
+                    <span>{profile.member_stats.active}</span>
+                    <span>Members</span>
+                  </div>
+                  {profile.member_stats.pending > 0 && (
+                    <div className="text-holy-blue-500">
+                      {profile.member_stats.pending} pending requests
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div className="flex items-center text-sm text-holy-blue-600">
                 <Calendar className="h-4 w-4 mr-1" />
                 Joined {format(new Date(profile.created_at), 'MMMM yyyy')}
               </div>
             </div>
-          </div>
-
-          {/* Church Membership */}
-          <div className="mt-8">
-            <ChurchMembership
-              userId={profile.id}
-              membership={profile.church_membership}
-              onMembershipChange={loadProfile}
-            />
           </div>
 
           {/* Sermon Notes */}

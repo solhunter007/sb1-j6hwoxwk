@@ -3,21 +3,40 @@ import { useForm } from 'react-hook-form';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
-import { ImageUp as ImageUpload, Church, User as UserIcon } from 'lucide-react';
+import { Edit2, Calendar, ArrowLeft } from 'lucide-react';
 import ImageCropper from '../components/ImageCropper';
 import { RegistrationReview } from '../components/auth/RegistrationReview';
 import { useRegistrationStore } from '../stores/registrationStore';
 import { DefaultAvatar } from '../components/profile/DefaultAvatar';
 import { ProfilePhotoUpload } from '../components/profile/ProfilePhotoUpload';
+import { z } from 'zod';
+
+// Validation schemas
+const loginSchema = z.object({
+  identifier: z.string().min(1, 'Email or username is required'),
+  password: z.string().min(1, 'Password is required')
+});
+
+const registrationSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  username: z.string().min(3, 'Username must be at least 3 characters'),
+  fullName: z.string().min(1, 'Full name is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string()
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"]
+});
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [croppingImage, setCroppingImage] = useState<{ file: string; type: 'profile' | 'header' } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { register, handleSubmit, watch, formState: { errors }, reset } = useForm();
+  const { register, handleSubmit, watch, formState: { errors }, reset, setError } = useForm();
   
   const {
     data: registrationData,
@@ -53,8 +72,27 @@ export default function Auth() {
 
   const onSubmit = async (formData: any) => {
     try {
+      setIsSubmitting(true);
+
       if (isSignUp) {
         if (currentStep < 5) {
+          // Validate current step
+          if (currentStep === 2) {
+            try {
+              await registrationSchema.parseAsync(formData);
+            } catch (err) {
+              if (err instanceof z.ZodError) {
+                err.errors.forEach(error => {
+                  setError(error.path[0] as string, { 
+                    type: 'manual',
+                    message: error.message 
+                  });
+                });
+                return;
+              }
+            }
+          }
+
           setData(formData);
           setStep(currentStep + 1);
           return;
@@ -73,17 +111,45 @@ export default function Auth() {
         clearData();
         navigate('/feed');
       } else {
-        await signIn(formData.identifier, formData.password);
-        const from = (location.state as any)?.from?.pathname || '/feed';
-        navigate(from, { replace: true });
+        try {
+          // Validate login data
+          await loginSchema.parseAsync(formData);
+          
+          await signIn(formData.identifier, formData.password);
+          const from = (location.state as any)?.from?.pathname || '/feed';
+          navigate(from, { replace: true });
+        } catch (err) {
+          if (err instanceof z.ZodError) {
+            err.errors.forEach(error => {
+              setError(error.path[0] as string, { 
+                type: 'manual',
+                message: error.message 
+              });
+            });
+            return;
+          }
+          throw err;
+        }
       }
     } catch (error) {
       console.error('Authentication error:', error);
+      
+      // Handle specific error cases
       if (error instanceof Error) {
+        if (error.message.includes('Invalid login credentials')) {
+          toast.error('Invalid email/username or password');
+          return;
+        }
+        if (error.message.includes('User already registered')) {
+          toast.error('This email is already registered');
+          return;
+        }
         toast.error(error.message);
       } else {
         toast.error('An unexpected error occurred');
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -136,7 +202,7 @@ export default function Auth() {
                   registrationData.userType === 'individual' ? 'border-holy-blue-500' : ''
                 }`}
               >
-                <UserIcon className="h-12 w-12 mx-auto mb-4 text-holy-blue-500" />
+                <Edit2 className="h-12 w-12 mx-auto mb-4 text-holy-blue-500" />
                 <h3 className="text-lg font-semibold text-holy-blue-900">Individual Account</h3>
                 <p className="text-sm text-holy-blue-600/70 mt-2">
                   Create and share sermon notes, join churches
@@ -152,7 +218,7 @@ export default function Auth() {
                   registrationData.userType === 'church' ? 'border-holy-blue-500' : ''
                 }`}
               >
-                <Church className="h-12 w-12 mx-auto mb-4 text-holy-blue-500" />
+                <Calendar className="h-12 w-12 mx-auto mb-4 text-holy-blue-500" />
                 <h3 className="text-lg font-semibold text-holy-blue-900">Church Organization</h3>
                 <p className="text-sm text-holy-blue-600/70 mt-2">
                   Manage your church community and events
@@ -345,6 +411,7 @@ export default function Auth() {
               <button
                 type="submit"
                 className="btn-primary flex-1"
+                disabled={isSubmitting}
               >
                 {isSignUp
                   ? currentStep < 5

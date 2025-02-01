@@ -15,12 +15,70 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Rate limiting configuration
+const RATE_LIMIT = {
+  maxAttempts: 5,
+  lockoutDuration: 15 * 60 * 1000, // 15 minutes in milliseconds
+};
+
+interface RateLimitState {
+  attempts: number;
+  lastAttempt: number;
+  lockedUntil: number | null;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [userType, setUserType] = useState<'individual' | 'church' | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Rate limiting state
+  const [rateLimitState, setRateLimitState] = useState<Record<string, RateLimitState>>({});
+
+  const checkRateLimit = (identifier: string): boolean => {
+    const now = Date.now();
+    const state = rateLimitState[identifier] || { attempts: 0, lastAttempt: 0, lockedUntil: null };
+
+    // Check if account is locked
+    if (state.lockedUntil && now < state.lockedUntil) {
+      const remainingMinutes = Math.ceil((state.lockedUntil - now) / 60000);
+      toast.error(`Account temporarily locked. Please try again in ${remainingMinutes} minutes or reset your password.`);
+      return false;
+    }
+
+    // Reset attempts if last attempt was more than lockout duration ago
+    if (now - state.lastAttempt > RATE_LIMIT.lockoutDuration) {
+      state.attempts = 0;
+    }
+
+    return true;
+  };
+
+  const updateRateLimit = (identifier: string, success: boolean) => {
+    const now = Date.now();
+    const state = rateLimitState[identifier] || { attempts: 0, lastAttempt: 0, lockedUntil: null };
+
+    if (success) {
+      // Reset on successful login
+      delete rateLimitState[identifier];
+      setRateLimitState({ ...rateLimitState });
+      return;
+    }
+
+    // Update failed attempts
+    state.attempts += 1;
+    state.lastAttempt = now;
+
+    // Lock account if max attempts exceeded
+    if (state.attempts >= RATE_LIMIT.maxAttempts) {
+      state.lockedUntil = now + RATE_LIMIT.lockoutDuration;
+      toast.error(`Account temporarily locked for security. Please try again in 15 minutes or reset your password.`);
+    }
+
+    setRateLimitState({ ...rateLimitState, [identifier]: state });
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -99,6 +157,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   };
 
+  const signIn = async (identifier: string, password: string) => {
+    try {
+      // Check rate limiting
+      if (!checkRateLimit(identifier)) {
+        return;
+      }
+
+      // First check if the identifier exists
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .or(`email.eq.${identifier},username.eq.${identifier}`)
+        .single();
+
+      if (profileError || !profileData) {
+        updateRateLimit(identifier, false);
+        throw new Error('This email address is not registered. Please sign up or try a different email.');
+      }
+
+      // Attempt sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: profileData.id,
+        password,
+      });
+
+      if (signInError) {
+        updateRateLimit(identifier, false);
+        if (signInError.message.includes('Invalid login credentials')) {
+          throw new Error('Incorrect password. Please try again.');
+        }
+        throw signInError;
+      }
+
+      // Success
+      updateRateLimit(identifier, true);
+      toast.success('Successfully signed in');
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+      throw error;
+    }
+  };
+
   const signUp = async (
     email: string, 
     password: string, 
@@ -113,9 +217,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from('profiles')
         .select('username')
         .eq('username', username)
-        .maybeSingle();
+        .single();
 
-      if (checkError) throw checkError;
+      if (checkError && checkError.code !== 'PGRST116') throw checkError;
       if (existingUser) throw new Error('Username is already taken');
 
       // Sign up the user
@@ -139,7 +243,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // If we have a profile image, upload it
       if (profileImage) {
         try {
-          avatarUrl = await uploadProfileImage(newUser.id, profileImage);
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(`${newUser.id}/profile.jpg`, profileImage);
+
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(uploadData.path);
+
+          avatarUrl = publicUrl;
         } catch (error) {
           console.error('Error uploading profile image:', error);
           toast.error('Failed to upload profile image, but account was created');
@@ -170,53 +284,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signIn = async (identifier: string, password: string) => {
-    try {
-      // Check if identifier is an email (contains @)
-      const isEmail = identifier.includes('@');
-      
-      if (isEmail) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: identifier,
-          password,
-        });
-
-        if (error) {
-          throw new Error('Invalid email or password');
-        }
-      } else {
-        // If it's not an email, assume it's a username
-        // First, query the profiles table to get the email
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', identifier)
-          .maybeSingle();
-
-        if (profileError || !profile) {
-          throw new Error('Invalid username or password');
-        }
-
-        // Now sign in with the email
-        const { error } = await supabase.auth.signInWithPassword({
-          email: profile.id,
-          password,
-        });
-
-        if (error) {
-          throw new Error('Invalid username or password');
-        }
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        toast.error(error.message);
-      } else {
-        toast.error('An unexpected error occurred');
-      }
-      throw error;
-    }
-  };
-
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -227,6 +294,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Navigate to home page
       navigate('/', { replace: true });
+      toast.success('Successfully signed out');
     } catch (error) {
       console.error('Error signing out:', error);
       // Clear state even on error
